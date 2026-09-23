@@ -71,6 +71,11 @@ button{cursor:pointer;border:0;background:none}
 .day i{font-style:normal;font-size:10.5px;letter-spacing:.1em;opacity:.75;display:flex;align-items:center;gap:4px;line-height:1.3}
 .day[aria-selected="true"]{background:var(--paper);color:var(--petrol-deep);opacity:1}
 .day .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--mustard);margin-left:5px;vertical-align:middle}
+/* Whole-trip tab. Mustard rule marks it as a different kind of thing from the
+   six dates without breaking the rail's rhythm. */
+.day-all{border-right:1px solid rgba(239,230,211,.25);margin-right:6px;padding-right:15px}
+.day-all b{letter-spacing:-.01em}
+.day-all[aria-selected="true"]{background:var(--mustard);color:var(--petrol-deep)}
 
 /* ---------- toolbar ---------- */
 .toolbar{background:var(--paper-2);border-bottom:1px solid var(--paper-3);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -78,6 +83,29 @@ button{cursor:pointer;border:0;background:none}
   -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
   mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
 .chips::-webkit-scrollbar{display:none}
+/* Filter is collapsed by default: eight category chips permanently eating a
+   toolbar row is a lot of furniture on a phone for something used rarely.
+   The button shows "3/8" when narrowed so a filtered view is never silent. */
+.filterbtn{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  border:1.5px solid var(--ink);color:var(--ink);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
+.filterbtn b{font-weight:600}
+.filterbtn.narrowed{border-color:var(--orange);color:var(--orange)}
+.filterbtn[aria-expanded="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.filterbtn[aria-expanded="true"].narrowed{background:var(--orange);border-color:var(--orange);color:var(--paper)}
+.fbars{width:13px;height:11px;flex:0 0 auto;
+  background:linear-gradient(currentColor,currentColor) 0 0/100% 1.8px no-repeat,
+             linear-gradient(currentColor,currentColor) 0 50%/70% 1.8px no-repeat,
+             linear-gradient(currentColor,currentColor) 0 100%/40% 1.8px no-repeat}
+
+.filterpanel{background:var(--paper-2);border-bottom:1px solid var(--paper-3);padding:12px 14px 14px}
+.filterpanel[hidden]{display:none}
+/* Inside the panel the chips wrap instead of scrolling — the whole point is
+   seeing every category at once. */
+.filterpanel .chips{flex-wrap:wrap;overflow:visible;-webkit-mask-image:none;mask-image:none;gap:7px}
+.filteracts{display:flex;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--paper-3)}
+.filteracts button{font-family:var(--display);font-size:11.5px;letter-spacing:.12em;color:var(--ink-soft);
+  border-bottom:1.5px solid currentColor;padding:0 0 1px}
+
 .chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
   border:1.5px solid var(--ink);background:transparent;font-size:12.5px;font-weight:500;letter-spacing:.02em;white-space:nowrap;transition:background .12s,color .12s}
 .chip .sw{width:9px;height:9px;border-radius:50%;background:currentColor;flex:0 0 auto}
@@ -88,6 +116,24 @@ button{cursor:pointer;border:0;background:none}
   display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;padding:0 5px}
 .tobook[aria-pressed="true"]{background:var(--brick);color:var(--paper)}
 .tobook[aria-pressed="true"] b{background:var(--paper);color:var(--brick)}
+
+/* Budget lives next to To book. Petrol rather than brick: brick is reserved
+   for "not booked", and the trip total is structural information, not an
+   alarm. The number sits in the button so the headline figure is readable
+   without opening anything. */
+.budget{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  border:1.5px solid var(--petrol);color:var(--petrol);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
+.budget[hidden]{display:none}
+.budget b{font-weight:600;letter-spacing:.01em}
+
+/* Touch targets. The filter chips, the to-book toggle and the sheet close
+   button all land around 28-32px, which is fiddly one-handed while walking —
+   which is the whole use case. Apple's guideline is ~44px. Scoped to coarse
+   pointers so the desktop layout keeps its tighter proportions. */
+@media (pointer:coarse){
+  .chip,.tobook,.budget{min-height:40px}
+  .sheet-head button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+}
 .tobook[hidden]{display:none}
 
 /* ---------- layout ---------- */
@@ -122,6 +168,13 @@ button{cursor:pointer;border:0;background:none}
 /* ---------- list ---------- */
 .list{padding:14px 14px 120px}
 .daytitle{font-family:var(--display);font-size:12px;letter-spacing:.24em;color:var(--ink-soft);margin:2px 0 12px}
+/* Day separator inside the whole-trip list. */
+.daybreak{display:flex;align-items:center;gap:10px;margin:22px 0 13px;
+  font-family:var(--display);font-size:11.5px;letter-spacing:.18em;color:var(--ink)}
+.daybreak::after{content:"";flex:1 1 auto;height:1.5px;background:var(--ink);opacity:.22}
+.daybreak i{font-style:normal;font-size:11px;letter-spacing:.08em;color:var(--ink-soft);
+  border:1.2px solid var(--paper-3);border-radius:999px;padding:1px 7px;flex:0 0 auto;order:3}
+.list > .daybreak:first-of-type{margin-top:4px}
 .empty{border:1.5px dashed var(--paper-3);padding:30px 22px;text-align:center;color:var(--ink-soft)}
 .empty h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0 0 6px;color:var(--ink)}
 .empty p{margin:0 0 14px;font-size:14px}
@@ -207,11 +260,59 @@ button{cursor:pointer;border:0;background:none}
 .costgrid b{display:block;font-family:var(--display);font-size:25px;font-weight:500;line-height:1.1}
 .costgrid span{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft)}
 
+/* ---------- budget sheet ---------- */
+.btabs{display:flex;gap:0;border-bottom:1.5px solid var(--ink);margin:0 0 18px}
+.btab{flex:1 1 0;padding:10px 4px;font-family:var(--display);font-size:12px;letter-spacing:.08em;
+  color:var(--ink-soft);border-bottom:3px solid transparent;margin-bottom:-1.5px;white-space:nowrap}
+.btab[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--orange);font-weight:500}
+
+/* The headline figure. Deliberately oversized — the numerals are the feature. */
+.btotal{background:var(--petrol);color:var(--paper);padding:16px 18px;margin-bottom:1px}
+.btotal span{display:block;font-family:var(--display);font-size:10.5px;letter-spacing:.16em;opacity:.8}
+.btotal b{display:block;font-family:var(--display);font-size:44px;font-weight:500;line-height:1.05;letter-spacing:-.02em;margin-top:3px}
+
+.bsplit{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--paper-3);border:1px solid var(--paper-3)}
+.bsplit div{background:var(--paper);padding:11px 13px}
+.bsplit span{display:block;font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft)}
+.bsplit b{display:block;font-family:var(--display);font-size:24px;font-weight:500;line-height:1.1;margin-top:2px}
+.bsplit b.brick{color:var(--brick)}
+
+.bnote{margin:14px 0 0;padding:10px 12px;background:var(--paper-2);border-left:3px solid var(--mustard);
+  font-size:13px;color:var(--ink-soft);line-height:1.4}
+.bnote.ok{border-left-color:var(--olive)}
+.bfacts{border-top:1.5px solid var(--ink);margin-top:18px}
+
+/* Proportional bars for the day and category breakdowns. */
+.brow{margin-bottom:15px}
+.brow-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:5px}
+.brow-top span{font-family:var(--display);font-size:13.5px;letter-spacing:.05em}
+.brow-top b{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:.01em;flex:0 0 auto}
+.bbar{height:9px;background:var(--paper-2);overflow:hidden}
+.bbar i{display:block;height:100%}
+.brow-sub{font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+
+/* Largest-first list. Tapping a row opens that stop. */
+.bitem{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;
+  padding:12px 0;border-bottom:1px solid var(--paper-3)}
+.bitem-main{min-width:0}
+.bitem h4{font-family:var(--display);font-weight:500;font-size:16px;margin:0;line-height:1.2}
+.bitem .tags{margin-top:5px}
+.bitem > b{font-family:var(--display);font-size:20px;font-weight:500;flex:0 0 auto;letter-spacing:.01em}
+
 /* ---------- form ---------- */
 .f{margin-bottom:15px}
 .f > label,.legend{display:block;font-family:var(--display);font-size:11.5px;letter-spacing:.14em;color:var(--ink-soft);margin-bottom:5px}
-.f input[type=text],.f input[type=url],.f input[type=time],.f input[type=number],.f select,.f textarea{
-  width:100%;padding:11px 12px;border:1.5px solid var(--paper-3);background:#FBF6EB;border-radius:2px}
+/* type=email is in this list for the sign-in field on the gate. Without it
+   that input falls back to the browser default and looks nothing like the
+   rest of the form.
+
+   font-size is pinned to 16px rather than inheriting the 15px body size:
+   iOS Safari zooms the viewport when a focused field is under 16px, and does
+   not zoom back out afterwards. This app is used one-handed on a phone, so
+   that lurch on every field tap is worth the 1px. */
+.f input[type=text],.f input[type=email],.f input[type=url],.f input[type=time],.f input[type=number],.f select,.f textarea{
+  width:100%;padding:11px 12px;border:1.5px solid var(--paper-3);background:#FBF6EB;border-radius:2px;
+  font-size:16px}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--petrol)}
 .f textarea{min-height:76px;resize:vertical}
 .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -237,7 +338,10 @@ button{cursor:pointer;border:0;background:none}
   background:var(--petrol-deep);color:var(--paper);padding:11px 17px;border-radius:2px;font-size:13.5px;
   box-shadow:0 2px 0 rgba(0,0,0,.3);max-width:88vw;text-align:center}
 .menu{position:relative}
-.menu-pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--paper);border:1.5px solid var(--ink);
+/* color is explicit because .masthead sets color:var(--paper) and the global
+   button{color:inherit} rule pulls that cream into this cream popover —
+   which renders the menu items invisible. */
+.menu-pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);
   min-width:190px;z-index:30;padding:5px}
 .menu-pop button{display:block;width:100%;text-align:left;padding:9px 11px;font-size:14px}
 .menu-pop button:hover{background:var(--paper-2)}

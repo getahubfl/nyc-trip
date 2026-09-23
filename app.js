@@ -154,11 +154,17 @@ function toRow(e) {
 }
 
 /* ---------- state ---------- */
+/* S.day holds a day id, or the sentinel ALL_DAYS for the whole-trip view.
+   Category filters apply in both, which is the point of the whole-trip view —
+   "show me every dinner across the trip". */
+const ALL_DAYS = 'all';
+
 const S = {
   events: [],
   day: DAYS[0].id,
   cats: new Set(CATS.map(c => c.id)),
   toBookOnly: false,
+  filtersOpen: false,
   selected: null,
   session: null,
   online: true
@@ -400,13 +406,71 @@ function visibleEvents() {
       .filter(e => e.needsReservation && !e.booked)
       .sort((a, b) => (a.day + (a.time || 'zz')).localeCompare(b.day + (b.time || 'zz')));
   }
+  if (S.day === ALL_DAYS) {
+    // Chronological across the whole trip; undated stops sort to the end of
+    // their own day, same rule as a single day view.
+    return S.events
+      .filter(e => S.cats.has(e.category))
+      .sort((a, b) => (a.day + (a.time || 'zz')).localeCompare(b.day + (b.time || 'zz')));
+  }
   return S.events.filter(e => e.day === S.day && S.cats.has(e.category)).sort(sortEvents);
 }
 function toBookCount() { return S.events.filter(e => e.needsReservation && !e.booked).length; }
 
+/* ---------- budget ---------- */
+/* Cost is stored per event as people × costPerPerson + extras. Nothing rolled
+   it up trip-wide, so there was no way to answer "what is this costing us".
+   These deliberately read S.events directly and ignore the day/category
+   filters — the question is about the whole trip, not the current view. */
+function budgetTotals() {
+  const priced = S.events.filter(e => totalCost(e) > 0);
+  const grand = priced.reduce((s, e) => s + totalCost(e), 0);
+  // "Outstanding" mirrors the To-book rule: needs a reservation, not booked yet.
+  const outstanding = priced
+    .filter(e => e.needsReservation && !e.booked)
+    .reduce((s, e) => s + totalCost(e), 0);
+  return {
+    grand,
+    outstanding,
+    committed: grand - outstanding,
+    pricedCount: priced.length,
+    unpricedCount: S.events.length - priced.length
+  };
+}
+function budgetByDay() {
+  return DAYS.map(d => {
+    const evs = S.events.filter(e => e.day === d.id);
+    return {
+      label: d.dow + ' ' + d.n,
+      sub: d.label.replace(/^[A-Za-z]+, /, ''),
+      color: 'var(--petrol)',
+      total: evs.reduce((s, e) => s + totalCost(e), 0),
+      count: evs.filter(e => totalCost(e) > 0).length
+    };
+  });
+}
+function budgetByCat() {
+  return CATS.map(c => {
+    const evs = S.events.filter(e => e.category === c.id);
+    return {
+      label: c.name,
+      color: c.color,
+      total: evs.reduce((s, e) => s + totalCost(e), 0),
+      count: evs.filter(e => totalCost(e) > 0).length
+    };
+  }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+}
+function budgetRanked() {
+  return S.events.filter(e => totalCost(e) > 0).sort((a, b) => totalCost(b) - totalCost(a));
+}
+
 /* ---------- render: chrome ---------- */
 function renderRail() {
-  $('#rail').innerHTML = DAYS.map(d => {
+  const allPend = S.events.some(e => e.needsReservation && !e.booked);
+  const all = `<button class="day day-all" role="tab" data-day="${ALL_DAYS}" aria-selected="${!S.toBookOnly && S.day === ALL_DAYS}">
+      <span>Trip</span><b>All</b><i>${S.events.length}${allPend ? '<span class="dot"></span>' : ''}</i>
+    </button>`;
+  $('#rail').innerHTML = all + DAYS.map(d => {
     const n = S.events.filter(e => e.day === d.id).length;
     const pend = S.events.some(e => e.day === d.id && e.needsReservation && !e.booked);
     return `<button class="day" role="tab" data-day="${d.id}" aria-selected="${!S.toBookOnly && S.day === d.id}">
@@ -420,11 +484,25 @@ function renderChips() {
     return `<button class="chip" data-cat="${c.id}" aria-pressed="${on}" style="color:${on ? 'var(--paper)' : c.color};border-color:${c.color}">
       <i class="sw"></i>${c.name}</button>`;
   }).join('');
+  // Collapsible filter panel. The button carries the active-filter state so
+  // a narrowed view is never invisible while the panel is shut.
+  const on = S.cats.size, allOn = on === CATS.length;
+  $('#filterN').textContent = allOn ? 'All' : `${on}/${CATS.length}`;
+  $('#filterBtn').setAttribute('aria-expanded', S.filtersOpen);
+  $('#filterBtn').classList.toggle('narrowed', !allOn);
+  $('#filterPanel').hidden = !S.filtersOpen;
+
   const n = toBookCount();
   $('#tobookN').textContent = n;
   $('#tobook').setAttribute('aria-pressed', S.toBookOnly);
   $('#tobook').hidden = n === 0 && !S.toBookOnly;
   $('#mastCount').textContent = S.events.length + ' stops';
+
+  // The toolbar button carries the trip total, so the headline number is
+  // visible without opening anything. Unlike To book this is never hidden at
+  // zero: the seeded itinerary has no costs yet, and a hidden button would
+  // make the budget undiscoverable exactly when it is most needed.
+  $('#budgetN').textContent = money(budgetTotals().grand);
 }
 function renderSyncBadge() {
   const el = $('#sync');
@@ -441,36 +519,57 @@ function statusTag(e) {
 function renderList() {
   const list = visibleEvents();
   const el = $('#list');
+  const allDays = S.day === ALL_DAYS;
   const d = DAYS.find(x => x.id === S.day);
 
   if (!list.length) {
+    const narrowed = S.cats.size < CATS.length;
     el.innerHTML = S.toBookOnly
       ? `<div class="empty"><h3>Everything is booked</h3><p>No outstanding reservations on the trip.</p></div>`
-      : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>
-         <div class="empty"><h3>Nothing here yet</h3>
-           <p>${S.events.some(e => e.day === S.day) ? 'Every stop on this day is filtered out.' : 'This day is wide open.'}</p>
-           <button class="btn primary" data-new="1" style="display:inline-block;flex:0 0 auto;padding:11px 20px">Add the first stop</button>
-         </div>`;
+      : allDays
+        ? `<div class="daytitle">THE WHOLE TRIP</div>
+           <div class="empty"><h3>Nothing matches</h3>
+             <p>${S.events.length ? 'Every stop is filtered out — widen the category filter.' : 'No stops on the trip yet.'}</p>
+             <button class="btn primary" data-new="1" style="display:inline-block;flex:0 0 auto;padding:11px 20px">Add the first stop</button>
+           </div>`
+        : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>
+           <div class="empty"><h3>Nothing here yet</h3>
+             <p>${S.events.some(e => e.day === S.day) ? 'Every stop on this day is filtered out.' : 'This day is wide open.'}</p>
+             <button class="btn primary" data-new="1" style="display:inline-block;flex:0 0 auto;padding:11px 20px">Add the first stop</button>
+           </div>`;
     return;
   }
 
   let html = S.toBookOnly
     ? `<div class="daytitle">STILL TO BOOK — ${list.length} ITEM${list.length === 1 ? '' : 'S'}</div>`
-    : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>`;
+    : allDays
+      ? `<div class="daytitle">THE WHOLE TRIP — ${list.length} STOP${list.length === 1 ? '' : 'S'}</div>`
+      : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>`;
 
   let pinIdx = 0;
+  let curDay = null;
   list.forEach((e, i) => {
     const c = CAT[e.category] || CAT.other;
     const placed = hasLoc(e);
     if (placed) pinIdx++;
     const num = placed ? pinIdx : '·';
     const dd = DAYS.find(x => x.id === e.day);
-    const dayTag = S.toBookOnly ? `<span class="tag" style="color:var(--ink-soft)">${dd.dow} ${dd.n}</span>` : '';
+
+    // Whole-trip view keeps its chronology readable by breaking on each day.
+    if (allDays && e.day !== curDay) {
+      curDay = e.day;
+      const cnt = list.filter(x => x.day === e.day).length;
+      html += `<div class="daybreak"><span>${esc((dd ? dd.label : e.day).toUpperCase())}</span><i>${cnt}</i></div>`;
+    }
+
+    const dayTag = S.toBookOnly && dd ? `<span class="tag" style="color:var(--ink-soft)">${dd.dow} ${dd.n}</span>` : '';
 
     let locBit = '';
     if (!placed) {
       if (e.geoStatus === 'pending') {
         locBit = `<div class="locating"><i class="blip"></i><span data-loc="${e.id}">${LOCATING[Math.floor(Math.random() * LOCATING.length)]}</span></div>`;
+      } else if (e.geoStatus === 'cleared') {
+        locBit = `<div class="noloc">Location removed — not on the map</div>`;
       } else if (e.geoStatus === 'failed' || e.geoStatus === 'none') {
         locBit = `<div class="noloc">No location yet — add coordinates</div>`;
       }
@@ -490,8 +589,11 @@ function renderList() {
       </div>
     </button>`;
 
+    // Walking legs only make sense between consecutive stops on the SAME day.
+    // In the whole-trip view the next stop may be tomorrow morning, which is
+    // not a walk.
     const nxt = list[i + 1];
-    if (!S.toBookOnly && nxt && placed && hasLoc(nxt)) {
+    if (!S.toBookOnly && nxt && nxt.day === e.day && placed && hasLoc(nxt)) {
       html += `<div class="leg">${legText(haversine({ lat: e.lat, lng: e.lng }, { lat: nxt.lat, lng: nxt.lng }))}</div>`;
     }
   });
@@ -504,6 +606,7 @@ function render() {
   renderSyncBadge();
   renderList();
   Map_.draw();
+  refreshBudgetIfOpen();
 }
 
 /* rotating pending-location copy */
@@ -539,6 +642,110 @@ function toast(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3200);
+}
+
+/* ---------- budget view ---------- */
+const BUDGET_TABS = [
+  { id: 'total', name: 'Overview' },
+  { id: 'day',   name: 'By day' },
+  { id: 'cat',   name: 'Category' },
+  { id: 'big',   name: 'Largest' }
+];
+let budgetTab = 'total';
+
+/* A labelled proportional bar. max is passed in so every row in a tab is
+   scaled against the same peak rather than against itself. */
+function budgetBar(label, sub, total, max, color) {
+  const pct = max > 0 ? Math.max(total > 0 ? 2 : 0, Math.round((total / max) * 100)) : 0;
+  return `<div class="brow">
+    <div class="brow-top"><span>${esc(label)}</span><b>${money(total)}</b></div>
+    <div class="bbar"><i style="width:${pct}%;background:${color}"></i></div>
+    ${sub ? `<div class="brow-sub">${esc(sub)}</div>` : ''}
+  </div>`;
+}
+
+function budgetBodyHTML() {
+  const t = budgetTotals();
+
+  if (budgetTab === 'total') {
+    const days = budgetByDay().filter(d => d.total > 0).sort((a, b) => b.total - a.total);
+    const cats = budgetByCat();
+    return `
+      <div class="btotal"><span>TRIP TOTAL</span><b>${money(t.grand)}</b></div>
+      <div class="bsplit">
+        <div><span>COMMITTED</span><b>${money(t.committed)}</b></div>
+        <div><span>STILL TO BOOK</span><b class="brick">${money(t.outstanding)}</b></div>
+      </div>
+      ${t.unpricedCount
+        ? `<div class="bnote">${t.unpricedCount} stop${t.unpricedCount === 1 ? '' : 's'} ${t.unpricedCount === 1 ? 'has' : 'have'} no cost recorded, so this total is incomplete.</div>`
+        : `<div class="bnote ok">Every stop has a cost recorded.</div>`}
+      <div class="bfacts">
+        ${days.length ? `<div class="d-row"><dt>PRICIEST DAY</dt><dd>${esc(days[0].label)} — ${money(days[0].total)}</dd></div>` : ''}
+        ${cats.length ? `<div class="d-row"><dt>BIGGEST CATEGORY</dt><dd>${esc(cats[0].label)} — ${money(cats[0].total)}</dd></div>` : ''}
+        <div class="d-row"><dt>STOPS PRICED</dt><dd>${t.pricedCount} of ${S.events.length}</dd></div>
+      </div>`;
+  }
+
+  if (budgetTab === 'day') {
+    const rows = budgetByDay();
+    const max = Math.max(...rows.map(r => r.total), 0);
+    if (!max) return `<div class="empty"><h3>No costs yet</h3><p>Add a cost to any stop and it will show up here.</p></div>`;
+    return rows.map(r => budgetBar(
+      r.label,
+      r.total ? `${r.count} priced stop${r.count === 1 ? '' : 's'}` : 'Nothing costed yet',
+      r.total, max, r.color
+    )).join('');
+  }
+
+  if (budgetTab === 'cat') {
+    const rows = budgetByCat();
+    const max = Math.max(...rows.map(r => r.total), 0);
+    if (!rows.length) return `<div class="empty"><h3>No costs yet</h3><p>Add a cost to any stop and it will show up here.</p></div>`;
+    return rows.map(r => budgetBar(
+      r.label, `${r.count} stop${r.count === 1 ? '' : 's'}`, r.total, max, r.color
+    )).join('');
+  }
+
+  // 'big' — every priced stop, most expensive first, tap through to the stop.
+  const ranked = budgetRanked();
+  if (!ranked.length) return `<div class="empty"><h3>No costs yet</h3><p>Add a cost to any stop and it will show up here.</p></div>`;
+  return ranked.map(e => {
+    const c = CAT[e.category] || CAT.other;
+    const d = DAYS.find(x => x.id === e.day);
+    const out = e.needsReservation && !e.booked;
+    return `<button class="bitem" data-open="${e.id}">
+      <div class="bitem-main">
+        <h4>${esc(e.title || 'Untitled stop')}</h4>
+        <div class="tags">
+          <span class="tag" style="color:var(--ink-soft)">${d ? d.dow + ' ' + d.n : ''}</span>
+          <span class="tag" style="color:${c.color}">${c.name}</span>
+          ${out ? `<span class="tag" style="color:var(--brick)">Not booked</span>` : ''}
+        </div>
+      </div>
+      <b>${money(totalCost(e))}</b>
+    </button>`;
+  }).join('');
+}
+
+function openBudget(tab) {
+  if (tab) budgetTab = tab;
+  sheetMode = 'budget';
+  const tabs = `<div class="btabs">${BUDGET_TABS.map(x =>
+    `<button class="btab" data-btab="${x.id}" aria-pressed="${budgetTab === x.id}">${x.name}</button>`
+  ).join('')}</div>`;
+  openSheet('Budget', tabs + `<div class="bbody">${budgetBodyHTML()}</div>`);
+}
+
+/* Re-render the open budget sheet in place, so a realtime edit from the other
+   phone updates the numbers instead of showing stale ones. */
+function refreshBudgetIfOpen() {
+  if (sheetMode !== 'budget' || sheet().hidden) return;
+  const body = $('#sheetBody .bbody');
+  const tabsEl = $('#sheetBody .btabs');
+  if (!body || !tabsEl) return;
+  body.innerHTML = budgetBodyHTML();
+  [...tabsEl.querySelectorAll('[data-btab]')].forEach(b =>
+    b.setAttribute('aria-pressed', b.dataset.btab === budgetTab));
 }
 
 /* ---------- detail view ---------- */
@@ -605,7 +812,9 @@ function openDetail(id) {
            <br><a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank" rel="noopener">Directions</a>`
         : (e.geoStatus === 'pending'
             ? `<span style="color:var(--stone)">Still looking…</span>`
-            : `<span style="color:var(--brick)">Not placed on the map yet</span>`)}</dd></div>
+            : e.geoStatus === 'cleared'
+              ? `<span style="color:var(--ink-soft)">Location removed. Use “Re-locate missing pins” to look it up again.</span>`
+              : `<span style="color:var(--brick)">Not placed on the map yet</span>`)}</dd></div>
       ${extras.length ? `<div class="d-row"><dt>EXTRAS</dt><dd>${extras.map(x => `${esc(x.label || 'Extra')} — ${money(x.amount)}`).join('<br>')}</dd></div>` : ''}
       ${e.link ? `<div class="d-row"><dt>LINK</dt><dd><a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.link.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
       ${e.notes ? `<div class="d-row"><dt>NOTES</dt><dd>${esc(e.notes)}</dd></div>` : ''}
@@ -701,7 +910,10 @@ function formHTML() {
   <div class="f"><label for="f-notes">NOTES</label><textarea id="f-notes" placeholder="Anything worth remembering">${esc(f.notes)}</textarea></div>
 
   <div class="f geobox">
-    <div class="geostat" id="f-geostat">${placed ? 'PIN PLACED' : (f.geoStatus === 'pending' ? 'STILL LOOKING…' : 'NO PIN YET')}</div>
+    <div class="geostat" id="f-geostat">${placed ? 'PIN PLACED'
+      : f.geoStatus === 'pending' ? 'STILL LOOKING…'
+      : f.geoStatus === 'cleared' ? 'LOCATION REMOVED'
+      : 'NO PIN YET'}</div>
     <div class="f2">
       <div><label for="f-lat">LATITUDE</label><input id="f-lat" type="text" inputmode="decimal" value="${placed ? f.lat : ''}" placeholder="40.75800"></div>
       <div><label for="f-lng">LONGITUDE</label><input id="f-lng" type="text" inputmode="decimal" value="${placed ? f.lng : ''}" placeholder="-73.98550"></div>
@@ -734,6 +946,9 @@ function readForm() {
   const la = parseFloat($('#f-lat').value), lo = parseFloat($('#f-lng').value);
   f.manualLat = Number.isFinite(la) ? la : null;
   f.manualLng = Number.isFinite(lo) ? lo : null;
+  // Both fields empty is meaningfully different from "no valid number typed".
+  // saveForm uses it to tell "remove this location" from "left it alone".
+  f.coordsBlank = $('#f-lat').value.trim() === '' && $('#f-lng').value.trim() === '';
   return f;
 }
 function updateTotal() { $('#f-total').textContent = 'Total for this stop: ' + money(totalCost(readForm())); }
@@ -842,14 +1057,32 @@ async function saveForm() {
     ev.geoStatus = 'manual'; ev.geoResolved = 'entered by hand';
   }
 
+  /* Blanking both coordinate fields on a stop that had a pin is an explicit
+     "unmap this". Without this branch ev.lat falls back to prev.lat above, so
+     the pin silently survives the save — and because ev.lat is then still
+     finite, needsLookup stays false and nothing corrects it either.
+
+     'cleared' is a distinct status rather than reusing 'failed'/'none' so the
+     geocoder does not simply put the pin back on the next load. "Re-locate
+     missing pins" in the ⋯ menu still picks it up, which is the deliberate
+     way back. */
+  const clearedCoords = !isNew && prev && hasLoc(prev) && f.coordsBlank;
+  if (clearedCoords) {
+    ev.lat = null; ev.lng = null;
+    ev.geoStatus = 'cleared'; ev.geoResolved = '';
+  }
+
   const placeChanged = !prev || prev.title !== ev.title || prev.address !== ev.address;
-  const needsLookup = ev.geoStatus !== 'manual' && (isNew || placeChanged || !Number.isFinite(ev.lat));
+  const needsLookup = ev.geoStatus !== 'manual' && ev.geoStatus !== 'cleared' &&
+    (isNew || placeChanged || !Number.isFinite(ev.lat));
   if (needsLookup) {
     ev.lat = null; ev.lng = null;
     ev.geoStatus = (ev.title || ev.address) ? 'pending' : 'none';
   }
 
-  if (!S.toBookOnly) S.day = ev.day;
+  // Jump to the saved stop's day — unless the whole-trip view is open, which
+  // already shows it.
+  if (!S.toBookOnly && S.day !== ALL_DAYS) S.day = ev.day;
 
   let saved;
   if (isNew) saved = await Data.insert(ev);
@@ -874,6 +1107,15 @@ document.addEventListener('click', async e => {
     render(); Map_.fit(); return;
   }
 
+  if (e.target.closest('#filterBtn')) { S.filtersOpen = !S.filtersOpen; render(); return; }
+
+  if (e.target.closest('[data-catall]')) { CATS.forEach(c => S.cats.add(c.id)); render(); return; }
+  if (e.target.closest('[data-catnone]')) {
+    // Leave one category on — an empty set means "show nothing", which reads
+    // as a broken screen rather than a filter. Matches the chip rule below.
+    S.cats.clear(); S.cats.add(CATS[0].id); render(); return;
+  }
+
   const chip = e.target.closest('#chips [data-cat]');
   if (chip) {
     const id = chip.dataset.cat;
@@ -882,6 +1124,11 @@ document.addEventListener('click', async e => {
     render(); return;
   }
   if (e.target.closest('#tobook')) { S.toBookOnly = !S.toBookOnly; S.selected = null; render(); Map_.fit(); return; }
+
+  if (e.target.closest('#budget')) { openBudget(); return; }
+
+  const btab = e.target.closest('[data-btab]');
+  if (btab) { openBudget(btab.dataset.btab); return; }
 
   const open = e.target.closest('[data-open]');
   if (open) { openDetail(open.dataset.open); return; }
@@ -1012,7 +1259,10 @@ async function boot() {
 
   // Anything without a pin gets queued for lookup, one at a time.
   S.events
-    .filter(e => !hasLoc(e) && (e.title || e.address) && e.geoStatus !== 'manual' && e.geoStatus !== 'pending')
+    // 'cleared' is excluded: the location was removed on purpose, so putting
+    // the pin back on every load would just undo the user's edit.
+    .filter(e => !hasLoc(e) && (e.title || e.address) &&
+      e.geoStatus !== 'manual' && e.geoStatus !== 'pending' && e.geoStatus !== 'cleared')
     .forEach(e => Geo.enqueue(e.id));
 }
 

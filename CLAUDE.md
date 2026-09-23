@@ -169,7 +169,13 @@ a stop in one.
 ## Open product questions
 
 - Sunday and Monday are empty. Once plans firm up they're just more rows.
-- Nothing surfaces a trip-wide budget total. Per-event cost only, by decision.
+- ~~Nothing surfaces a trip-wide budget total. Per-event cost only, by
+  decision.~~ **Closed.** A Budget view now rolls costs up trip-wide: overview
+  (total, committed vs still-to-book), by day, by category, and every priced
+  stop largest-first. It reads `S.events` directly and deliberately ignores the
+  day and category filters — the question it answers is about the whole trip,
+  not the current view. Note the seeded itinerary ships with every
+  `cost_per_person` at 0, so the view is empty until costs are entered.
 - No offline support. If the subway kills signal mid-walk, the page shows what
   it already loaded but cannot save. A service worker with a write queue would
   fix it and is probably the single highest-value addition before the trip.

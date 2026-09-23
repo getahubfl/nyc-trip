@@ -60,8 +60,18 @@
   <nav class="rail" id="rail" role="tablist" aria-label="Trip days"></nav>
 
   <div class="toolbar">
-    <div class="chips" id="chips"></div>
+    <button class="filterbtn" id="filterBtn" aria-expanded="false" aria-controls="filterPanel">
+      <i class="fbars" aria-hidden="true"></i>Filter <b id="filterN">All</b>
+    </button>
     <button class="tobook" id="tobook" aria-pressed="false">To book <b id="tobookN">0</b></button>
+    <button class="budget" id="budget">Budget <b id="budgetN">$0</b></button>
+  </div>
+  <div class="filterpanel" id="filterPanel" hidden>
+    <div class="chips" id="chips"></div>
+    <div class="filteracts">
+      <button data-catall="1">Select all</button>
+      <button data-catnone="1">Clear</button>
+    </div>
   </div>
   </div>
 

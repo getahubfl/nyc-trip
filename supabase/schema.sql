@@ -82,7 +82,9 @@ create table if not exists public.events (
   -- where
   lat               double precision,
   lng               double precision,
-  geo_status        text not null default 'idle',   -- idle|pending|ok|manual|failed|none
+  -- 'cleared' means the user deliberately removed the coordinates; the
+  -- geocoder skips it so the pin does not come back on the next load.
+  geo_status        text not null default 'idle',   -- idle|pending|ok|manual|failed|none|cleared
   geo_resolved      text default '',
 
   -- bookkeeping

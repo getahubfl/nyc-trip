@@ -7,3 +7,6 @@ private/
 
 .DS_Store
 node_modules/
+
+# Local tooling config, not part of the app.
+.claude/
