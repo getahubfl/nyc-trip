@@ -1016,11 +1016,21 @@ async function boot() {
     .forEach(e => Geo.enqueue(e.id));
 }
 
+/* Only react to sign-ins that happen *after* the initial boot has settled.
+   boot() is async; while it runs, #app is still hidden. Without this guard a
+   SIGNED_IN event fired during boot (magic-link hash detection, or a token
+   refresh) triggers a reload, which restarts boot, which reloads again — an
+   infinite reload loop that renders the page partially and then discards it. */
+let booted = false;
+
 sb.auth.onAuthStateChange((event) => {
+  if (!booted) return;
   if (event === 'SIGNED_IN' && $('#app').hidden) location.reload();
 });
 
-document.addEventListener('DOMContentLoaded', boot);
+document.addEventListener('DOMContentLoaded', () => {
+  boot().finally(() => { booted = true; });
+});
 
 /* exposed for the console and for Claude Code's tests */
 window.S = S;
