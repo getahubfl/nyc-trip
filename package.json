@@ -1,0 +1,12 @@
+{
+  "name": "nyc-trip",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/smoke.cjs",
+    "seed": "node private/seed.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

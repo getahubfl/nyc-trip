@@ -1,0 +1,29 @@
+# Supabase pauses free-tier projects after 7 days with no requests, and the
+# first request after a pause takes 10-30 seconds to cold-start. This pings
+# the project every 3 days so the trip app is never asleep when you open it.
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '0 9 */3 * *'   # 09:00 UTC, every 3 days
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the database
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /tmp/out -w '%{http_code}' \
+              -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+              "${{ secrets.SUPABASE_URL }}/rest/v1/heartbeat?select=ok&limit=1") || true
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then echo "awake"; exit 0; fi
+            sleep 20
+          done
+          echo "Supabase did not respond with 200 after 3 attempts."
+          cat /tmp/out || true
+          exit 1

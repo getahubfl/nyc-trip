@@ -1,0 +1,9 @@
+# Your Supabase project URL + anon key. Never committed.
+config.js
+
+# The real itinerary, with hotels, names and confirmation numbers.
+# Lives in the database, not in a public repo.
+private/
+
+.DS_Store
+node_modules/

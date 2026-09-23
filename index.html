@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New York — Thanksgiving 2026</title>
+<meta name="theme-color" content="#1B4F4B">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗽</text></svg>">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+</head>
+<body>
+
+<!-- ============ sign-in gate ============ -->
+<section class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <h1 class="mast-title" style="color:var(--ink)"><span>THANKSGIVING</span>New York</h1>
+    <p class="gate-sub">Nov 25 – 30, 2026</p>
+    <form id="gateForm">
+      <div class="f">
+        <label for="gateEmail">YOUR EMAIL</label>
+        <input id="gateEmail" type="email" required autocomplete="email" placeholder="you@example.com">
+      </div>
+      <button class="btn primary" id="gateSend" type="submit">Send me a link</button>
+    </form>
+    <p class="gate-msg" id="gateMsg"></p>
+  </div>
+</section>
+
+<!-- ============ app ============ -->
+<div id="app" hidden>
+<div class="shell">
+  <div class="chrome" id="chrome">
+  <header class="masthead">
+    <div class="mast-row">
+      <h1 class="mast-title"><span>THANKSGIVING</span>New York</h1>
+      <div style="display:flex;align-items:flex-end;gap:10px">
+        <div class="mast-meta"><b id="mastCount">—</b>Nov 25 – 30, 2026</div>
+        <div class="menu">
+          <button class="mast-menu" id="menuBtn" aria-label="More options" aria-expanded="false">⋯</button>
+          <div class="menu-pop" id="menuPop" hidden>
+            <button data-act="fit">Fit map to stops</button>
+            <button data-act="relocate">Re-locate missing pins</button>
+            <button data-act="signout">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="sync" id="sync" title="Live"></span>
+  </header>
+
+  <nav class="rail" id="rail" role="tablist" aria-label="Trip days"></nav>
+
+  <div class="toolbar">
+    <div class="chips" id="chips"></div>
+    <button class="tobook" id="tobook" aria-pressed="false">To book <b id="tobookN">0</b></button>
+  </div>
+  </div>
+
+  <div class="body-grid">
+    <div class="map-col">
+      <div class="map-wrap" id="mapWrap">
+        <div id="map"></div>
+        <div class="map-empty" id="mapEmpty" hidden></div>
+      </div>
+    </div>
+    <div class="list-col">
+      <div class="list" id="list"></div>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fab">+ New stop</button>
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="sheet-head"><h2 id="sheetTitle">—</h2><button id="closeSheet" aria-label="Close">×</button></div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-foot" id="sheetFoot"></div>
+</section>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
