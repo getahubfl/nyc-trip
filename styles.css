@@ -139,7 +139,11 @@ button{cursor:pointer;border:0;background:none}
 /* ---------- layout ---------- */
 .body-grid{display:block}
 @media (min-width:900px){
-  .body-grid{display:grid;grid-template-columns:1fr 420px;align-items:start}
+  /* The list column was a fixed 420px, so narrowing the window ate the map's
+     width first — at 900px the map became a tall, thin strip. Clamping it to a
+     share of the viewport keeps the two columns proportionate as the window
+     resizes, which is the point of the split view. */
+  .body-grid{display:grid;grid-template-columns:1fr clamp(300px,32vw,420px);align-items:start}
   .chrome{position:sticky;top:0;z-index:20}
   .map-col{position:sticky;top:var(--chrome,0px)}
   .list-col{border-left:1px solid var(--paper-3);min-height:60vh}

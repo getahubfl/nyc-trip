@@ -396,8 +396,53 @@ const Map_ = {
   focus(e) {
     if (!this.ready || !hasLoc(e)) return;
     this.map.easeTo({ center: [e.lng, e.lat], zoom: Math.max(this.map.getZoom(), 15), duration: 500 });
+  },
+
+  /* MapLibre sizes its canvas once and only re-measures when told. The
+     container changes size for reasons no window resize event covers —
+     opening the filter panel, the toolbar wrapping to two rows — so the
+     canvas has to be nudged explicitly or it renders at a stale size. */
+  resize() {
+    if (this.ready && this.map) this.map.resize();
   }
 };
+
+/* ---------- layout sync ---------- */
+/* The sticky header's height is subtracted from the viewport to size and
+   offset the map, through a --chrome custom property that styles.css reads
+   twice. Nothing ever set it, so it fell back to 0px: on desktop the map was
+   laid out a full viewport tall inside a slot that is shorter by exactly the
+   header, pushing its bottom off-screen, and it never re-flowed when the
+   window changed. Measure it, and keep measuring. */
+function syncChromeHeight() {
+  const c = $('#chrome');
+  if (!c) return;
+  document.documentElement.style.setProperty('--chrome', c.offsetHeight + 'px');
+}
+
+let layoutTick = null;
+function scheduleLayoutSync() {
+  if (layoutTick) return;
+  layoutTick = requestAnimationFrame(() => {
+    layoutTick = null;
+    syncChromeHeight();
+    Map_.resize();
+  });
+}
+
+function watchLayout() {
+  syncChromeHeight();
+  // Observing the elements themselves catches container changes that never
+  // fire a window resize — the filter panel opening is the common one.
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(scheduleLayoutSync);
+    const chromeEl = $('#chrome'), mapEl = $('#map');
+    if (chromeEl) ro.observe(chromeEl);
+    if (mapEl) ro.observe(mapEl);
+  }
+  window.addEventListener('resize', scheduleLayoutSync);
+  window.addEventListener('orientationchange', scheduleLayoutSync);
+}
 
 /* ---------- filtering ---------- */
 function visibleEvents() {
@@ -1244,6 +1289,7 @@ async function boot() {
 
   showApp();
   Map_.init();
+  watchLayout();
   await Data.load();
 
   // Signed in but not on the allow-list: RLS returns nothing.
