@@ -23,13 +23,13 @@ on conflict (email) do nothing;
 
 alter table public.trip_members enable row level security;
 
-drop policy if exists "members can read the member list" on public.trip_members;
-create policy "members can read the member list"
-  on public.trip_members for select
-  to authenticated
-  using (lower(auth.jwt() ->> 'email') in (select lower(email) from public.trip_members));
-
 -- Helper: is the current signed-in user on the allow-list?
+-- Defined before the policy below because that policy depends on it.
+--
+-- This MUST be security definer. A policy on trip_members that selects from
+-- trip_members re-enters its own policy and Postgres aborts the query with
+-- 42P17 "infinite recursion detected in policy". Running the lookup as the
+-- function owner bypasses RLS on the inner read and breaks the cycle.
 create or replace function public.is_trip_member()
 returns boolean
 language sql
@@ -42,6 +42,12 @@ as $$
     where lower(m.email) = lower(auth.jwt() ->> 'email')
   );
 $$;
+
+drop policy if exists "members can read the member list" on public.trip_members;
+create policy "members can read the member list"
+  on public.trip_members for select
+  to authenticated
+  using (public.is_trip_member());
 
 -- ------------------------------------------------------------
 -- 2. The itinerary
