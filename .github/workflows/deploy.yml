@@ -35,6 +35,18 @@ jobs:
           };
           CONFIG
 
+      # Pages serves index.html with a short cache but app.js/styles.css stick
+      # around in the browser, so a deploy can leave new markup driving old
+      # code — buttons that render but do nothing. Stamping the commit SHA
+      # onto the asset URLs makes every deploy a fresh URL. Matters most on
+      # iOS Safari, where force-refreshing is awkward.
+      - name: Cache-bust asset URLs
+        run: |
+          V="${GITHUB_SHA::8}"
+          sed -i "s|href=\"styles.css\"|href=\"styles.css?v=$V\"|" index.html
+          sed -i "s|src=\"app.js\"|src=\"app.js?v=$V\"|" index.html
+          grep -E 'styles\.css|app\.js' index.html
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
