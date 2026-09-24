@@ -273,12 +273,16 @@ const Geo = {
   async one(ev) {
     await Data.update(ev.id, { geoStatus: 'pending' });
 
-    // Try the full "name, address" first, then fall back to each on its own.
-    const tries = [
-      [ev.title, ev.address].filter(Boolean).join(', '),
+    /* Address first when there is one. A street address is an unambiguous
+       geocode; a name is a guess that Nominatim resolves by popularity, so
+       "Surprise 1" or a generic restaurant name can land anywhere in the
+       world. Name-plus-address is the second try because an over-specified
+       query can miss entirely, and bare name is the last resort. */
+    const tries = [...new Set([
       ev.address,
+      [ev.title, ev.address].filter(Boolean).join(', '),
       ev.title
-    ].filter(Boolean);
+    ].filter(Boolean))];
 
     for (const q of tries) {
       try {
@@ -287,17 +291,29 @@ const Geo = {
           + '&viewbox=-74.0479,40.9176,-73.9067,40.6829&bounded=0'   // nudge toward NYC
           + '&q=' + encodeURIComponent(/new york|ny\b|nyc/i.test(q) ? q : q + ', New York, NY');
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if (!res.ok) continue;
-        const hits = await res.json();
-        if (!hits.length) continue;
-        const lat = Number(hits[0].lat), lng = Number(hits[0].lon);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-        await Data.update(ev.id, {
-          lat, lng, geoStatus: 'ok',
-          geoResolved: String(hits[0].display_name || '').slice(0, 160)
-        });
-        return;
-      } catch (err) { /* try the next phrasing */ }
+        if (!res.ok) {
+          console.warn('[geo] HTTP', res.status, 'for', q);
+        } else {
+          const hits = await res.json();
+          const lat = hits.length ? Number(hits[0].lat) : NaN;
+          const lng = hits.length ? Number(hits[0].lon) : NaN;
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            await Data.update(ev.id, {
+              lat, lng, geoStatus: 'ok',
+              geoResolved: String(hits[0].display_name || '').slice(0, 160)
+            });
+            return;
+          }
+          console.warn('[geo] no usable hit for', q);
+        }
+      } catch (err) {
+        // Swallowing this entirely made a CORS or offline failure look
+        // identical to "this place does not exist". Say so in the console.
+        console.warn('[geo] request failed for', q, err);
+      }
+      /* This pause used to be skipped whenever a try bailed early, so the
+         fallback queries fired back-to-back and Nominatim throttled them —
+         turning one bad match into a total failure. It now always runs. */
       await new Promise(r => setTimeout(r, 1100));
       this.last = Date.now();
     }
@@ -1118,6 +1134,14 @@ async function saveForm() {
   }
 
   const placeChanged = !prev || prev.title !== ev.title || prev.address !== ev.address;
+
+  /* Editing the title or address of a cleared stop releases the block.
+     "Cleared" means "this pin was wrong, forget it" — but typing a new
+     address is an unambiguous request to place it again, and making the user
+     dig through the ⋯ menu for that is a trap. Only skip this when the same
+     save also blanked the coordinate fields, which is an explicit re-clear. */
+  if (ev.geoStatus === 'cleared' && placeChanged && !clearedCoords) ev.geoStatus = 'idle';
+
   const needsLookup = ev.geoStatus !== 'manual' && ev.geoStatus !== 'cleared' &&
     (isNew || placeChanged || !Number.isFinite(ev.lat));
   if (needsLookup) {
@@ -1221,7 +1245,10 @@ document.addEventListener('click', async e => {
     $('#menuBtn').setAttribute('aria-expanded', false);
     if (act.dataset.act === 'fit') Map_.fit();
     if (act.dataset.act === 'relocate') {
-      const miss = S.events.filter(x => !hasLoc(x) && (x.title || x.address) && x.geoStatus !== 'pending' && x.geoStatus !== 'manual');
+      /* Deliberately includes 'pending' and 'cleared'. This is an explicit
+         "go find the missing pins" request, so a stop stranded mid-lookup is
+         exactly what the user means, and a cleared one is theirs to undo. */
+      const miss = S.events.filter(x => !hasLoc(x) && (x.title || x.address) && x.geoStatus !== 'manual');
       if (!miss.length) toast('Every stop with a name is already placed.');
       else { miss.forEach(x => Geo.enqueue(x.id)); toast('Looking up ' + miss.length + ' stop' + (miss.length === 1 ? '' : 's') + '…'); }
     }
@@ -1305,10 +1332,16 @@ async function boot() {
 
   // Anything without a pin gets queued for lookup, one at a time.
   S.events
-    // 'cleared' is excluded: the location was removed on purpose, so putting
-    // the pin back on every load would just undo the user's edit.
+    /* 'pending' IS included. The queue only lives in memory, so a stop still
+       marked pending at page load is one whose lookup never finished — the
+       tab closed, the network dropped, the page navigated. Excluding it meant
+       that stop was never retried again by anything, leaving it permanently
+       unmapped and stuck on "Asking a cabbie…".
+
+       'manual' and 'cleared' stay excluded: both mean the user decided where
+       this stop is, or that it has no location. */
     .filter(e => !hasLoc(e) && (e.title || e.address) &&
-      e.geoStatus !== 'manual' && e.geoStatus !== 'pending' && e.geoStatus !== 'cleared')
+      e.geoStatus !== 'manual' && e.geoStatus !== 'cleared')
     .forEach(e => Geo.enqueue(e.id));
 }
 
