@@ -1328,8 +1328,10 @@ async function boot() {
 
   Data.subscribe();
   render();
-  Map_.fit();
 
+  /* Queue lookups BEFORE touching the map. This used to run after Map_.fit(),
+     so anything that threw while fitting bounds took the geocoder down with
+     it and no stop was ever looked up — with no error surfaced anywhere. */
   // Anything without a pin gets queued for lookup, one at a time.
   S.events
     /* 'pending' IS included. The queue only lives in memory, so a stop still
@@ -1343,7 +1345,26 @@ async function boot() {
     .filter(e => !hasLoc(e) && (e.title || e.address) &&
       e.geoStatus !== 'manual' && e.geoStatus !== 'cleared')
     .forEach(e => Geo.enqueue(e.id));
+
+  try { Map_.fit(); } catch (err) { console.warn('[boot] map fit failed', err); }
 }
+
+/* Console helper: reports what the app actually believes about each stop's
+   location, which is the only way to tell "the lookup failed" apart from
+   "the lookup was never attempted". Run geoDebug() in the browser console. */
+window.geoDebug = () => {
+  const rows = S.events.map(e => ({
+    title: (e.title || '').slice(0, 28),
+    address: (e.address || '').slice(0, 28),
+    geo: e.geoStatus,
+    pinned: hasLoc(e) ? `${e.lat.toFixed(4)},${e.lng.toFixed(4)}` : '—'
+  }));
+  console.table(rows);
+  const stuck = rows.filter(r => r.pinned === '—');
+  console.log(`${rows.length} stops, ${stuck.length} without a pin`);
+  console.log('queue:', Geo.queue.length, 'running:', Geo.running);
+  return rows;
+};
 
 /* Only react to sign-ins that happen *after* the initial boot has settled.
    boot() is async; while it runs, #app is still hidden. Without this guard a
