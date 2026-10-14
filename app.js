@@ -1300,17 +1300,39 @@ async function sendMagicLink(email) {
   $('#gateMsg').textContent = 'Check ' + email + ' — the link signs you straight in.';
 }
 
+/* Wired in both the signed-out path and the unreachable-database path, so the
+   sign-in form always works once the backend comes back. */
+let gateWired = false;
+function wireGate() {
+  if (gateWired) return;
+  gateWired = true;
+  $('#gateForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const email = $('#gateEmail').value.trim();
+    if (email) sendMagicLink(email);
+  });
+}
+
 async function boot() {
-  const { data: { session } } = await sb.auth.getSession();
+  /* #gate and #app both start hidden, and only this function un-hides either.
+     getSession() throws outright when Supabase cannot be reached — a paused
+     free project loses its DNS record entirely — which killed boot here and
+     left a blank page with no sign-in box and no explanation. Fall back to
+     the gate carrying the real reason. */
+  let session = null;
+  try {
+    ({ data: { session } } = await sb.auth.getSession());
+  } catch (err) {
+    console.error('[boot] cannot reach Supabase', err);
+    showGate('Cannot reach the trip database right now. If it was paused it takes a few minutes to wake up — wait, then reload.');
+    wireGate();
+    return;
+  }
   S.session = session;
 
   if (!session) {
     showGate('');
-    $('#gateForm').addEventListener('submit', ev => {
-      ev.preventDefault();
-      const email = $('#gateEmail').value.trim();
-      if (email) sendMagicLink(email);
-    });
+    wireGate();
     return;
   }
 
@@ -1320,9 +1342,18 @@ async function boot() {
   await Data.load();
 
   // Signed in but not on the allow-list: RLS returns nothing.
-  const { count } = await sb.from('trip_members').select('email', { count: 'exact', head: true });
+  let count = null;
+  try {
+    ({ count } = await sb.from('trip_members').select('email', { count: 'exact', head: true }));
+  } catch (err) {
+    console.error('[boot] allow-list check failed', err);
+    showGate('Signed in, but the trip database is not responding. Wait a moment and reload.');
+    wireGate();
+    return;
+  }
   if (!count) {
     showGate('That address is signed in but is not on the trip. Add it to trip_members in Supabase.');
+    wireGate();
     return;
   }
 

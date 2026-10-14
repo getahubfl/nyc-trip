@@ -5,7 +5,13 @@ name: Supabase keepalive
 
 on:
   schedule:
-    - cron: '0 9 */3 * *'   # 09:00 UTC, every 3 days
+    # Daily, not every 3 days. Supabase pauses a free project after 7 days
+    # idle, and '*/3' on day-of-month restarts at the 1st — so the 28th to the
+    # 1st is a 4-day gap. GitHub also silently skips scheduled runs on repos
+    # with no recent activity, which stretches any gap further. The project
+    # paused on 13 Oct 2026 despite this workflow reporting success on the
+    # 10th. A daily ping costs nothing and removes the whole class of problem.
+    - cron: '0 9 * * *'   # 09:00 UTC, daily
   workflow_dispatch:
 
 jobs:
