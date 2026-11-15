@@ -389,7 +389,13 @@ button{cursor:pointer;border:0;background:none}
 .gate-sub{font-family:var(--display);font-size:13px;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 22px}
 .gate-card .btn{width:100%}
 .gate-card .addlink{margin-top:14px;padding:8px 0 2px}
-.gate-msg{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;min-height:1.2em}
+/* Sits above the form, next to the field it is about, so it stays in view
+   with the keyboard up. A failure gets the "not booked" treatment: at the
+   foot of the card in the status line's grey it went unread, and a refused
+   sign-in looked like a button that did nothing. */
+.gate-msg{font-size:13.5px;color:var(--ink-soft);margin:0 0 14px}
+.gate-msg:empty{display:none}
+.gate-msg.bad{color:var(--brick);font-weight:700;padding:10px 12px;border-left:5px solid var(--brick);background:var(--paper-2)}
 
 /* ---------- live-sync badge ---------- */
 .sync{position:absolute;right:20px;top:16px;width:8px;height:8px;border-radius:50%;

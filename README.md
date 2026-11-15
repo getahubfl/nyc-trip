@@ -34,8 +34,10 @@ signup** template, add a line with the sign-in code:
 
 The app signs in by that code rather than by the link, because a link signs in
 whichever browser opens it — on a phone, usually the mail app's own. Without
-this line the email has no code, and the only way in on a phone is to copy the
-link out of the email and paste it into the app.
+this line the email has no code, and there is no dependable way in on an
+iPhone. The code box does accept the email's link pasted in, but pressing and
+holding a link to copy it makes an iPhone preview it, and the preview uses the
+one-time link up.
 
 ## 2. Local config
 
@@ -135,7 +137,7 @@ npm install          # playwright
 node test/smoke.cjs
 ```
 
-Runs fully offline against stubs. 65 assertions.
+Runs fully offline against stubs. 69 assertions.
 
 ## Attribution
 

@@ -1308,10 +1308,16 @@ document.addEventListener('keydown', e => {
    A typed code signs in the browser it is typed into. The link in the same
    email still works wherever it does open in the right place.
    ============================================================ */
+// Every reason the gate is given is a problem, so it is shown as one.
 function showGate(msg) {
   $('#gate').hidden = false;
   $('#app').hidden = true;
-  if (msg) $('#gateMsg').textContent = msg;
+  if (msg) gateSay(msg, true);
+}
+function gateSay(msg, bad = false) {
+  const el = $('#gateMsg');
+  el.textContent = msg;
+  el.classList.toggle('bad', bad);
 }
 function showApp() {
   $('#gate').hidden = true;
@@ -1346,7 +1352,7 @@ function gateStep(step) {
 function awaitCode(email, msg) {
   gateEmail = email;
   gateStep('code');
-  $('#gateMsg').textContent = msg;
+  gateSay(msg);
   $('#gateCode').focus();
 }
 
@@ -1354,16 +1360,21 @@ async function sendCode(email) {
   const btn = $('#gateSend');
   btn.disabled = true;
   btn.textContent = 'Sending…';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href.split('#')[0] }
-  });
+  // A thrown error is shown like a returned one. Left uncaught it would
+  // strand the button on "Sending…" with nothing said.
+  let error;
+  try {
+    ({ error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href.split('#')[0] }
+    }));
+  } catch (err) { error = err; }
   btn.disabled = false;
   btn.textContent = 'Send me a code';
   if (error) {
-    $('#gateMsg').textContent = /rate limit/i.test(error.message)
+    gateSay(/rate limit/i.test(error.message)
       ? 'Supabase only sends a few sign-in emails an hour, and that limit is used up. Wait an hour — or tap “I already have a code” and use the newest email.'
-      : error.message;
+      : error.message, true);
     return;
   }
   setPending(email);
@@ -1371,29 +1382,36 @@ async function sendCode(email) {
 }
 
 async function verifyCode(entered) {
-  /* The field takes either thing the email offers. A pasted sign-in link
+  /* The field also takes the email's sign-in link, pasted in. The link
      carries its one-time token in the query string; redeeming it here signs
      in this browser instead of whichever one would have opened the link.
      Decoded first, because a mail app may hand the link over wrapped inside
-     a redirect of its own. */
+     a redirect of its own.
+
+     The page does not advertise this, because on an iPhone it rarely works:
+     pressing and holding a link to copy it loads a preview of it, and that
+     preview spends the link before it can be pasted. */
   let pasted = entered;
   try { pasted = decodeURIComponent(entered); } catch (err) { /* not encoded */ }
   const link = pasted.match(/[?&]token=([\w-]+)/);
   const code = entered.replace(/\D/g, '');
-  if (!link && !code) { $('#gateMsg').textContent = 'Type the code from the email.'; return; }
+  if (!link && !code) { gateSay('Type the code from the email.', true); return; }
 
   const btn = $('#gateVerify');
   btn.disabled = true;
   btn.textContent = 'Signing in…';
-  const { error } = await sb.auth.verifyOtp(link
-    ? { token_hash: link[1], type: 'email' }
-    : { email: gateEmail, token: code, type: 'email' });
+  let error;
+  try {
+    ({ error } = await sb.auth.verifyOtp(link
+      ? { token_hash: link[1], type: 'email' }
+      : { email: gateEmail, token: code, type: 'email' }));
+  } catch (err) { error = err; }
   if (error) {
     btn.disabled = false;
     btn.textContent = 'Sign in';
-    $('#gateMsg').textContent = /expired|invalid/i.test(error.message)
-      ? 'That did not work — it has expired, or a newer email replaced it. Use the newest email, or start over.'
-      : error.message;
+    gateSay(!/expired|invalid/i.test(error.message) ? error.message
+      : link ? 'That link was already used or has expired. On an iPhone, pressing and holding a link to copy it uses it up. Start over and type the code instead.'
+      : 'That code did not work. It is wrong, already used or expired. Check the newest email, or start over.', true);
     return;
   }
   location.reload();
@@ -1425,7 +1443,7 @@ function wireGate() {
   $('#gateRestart').addEventListener('click', () => {
     setPending('');
     gateStep('email');
-    $('#gateMsg').textContent = '';
+    gateSay('');
   });
 }
 

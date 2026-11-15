@@ -119,9 +119,14 @@ sheet/detail/form → global event handling → auth gate → boot.
   browser opens it, and on an iPhone that is the mail app's built-in browser —
   not Safari, and never the Home Screen app, which keeps its own separate
   sign-in. The gate asks for the code from the email and signs in the browser
-  it is typed into. The same field accepts the email's link pasted in, which
-  is the fallback when the email carries no code. The pending code survives a
-  reload (`PENDING_KEY`), because leaving for the mail app can reload the page.
+  it is typed into. The pending code survives a reload (`PENDING_KEY`),
+  because leaving for the mail app can reload the page. The same field also
+  accepts the email's link pasted in, but the page does not advertise that and
+  it is no substitute for the code: on an iPhone, pressing and holding a link
+  to copy it loads a preview, and the preview spends the one-time link.
+- **A refused sign-in must be impossible to miss.** Gate messages go through
+  `gateSay`; failures are brick and sit above the field. In the status line's
+  grey at the foot of the card, a refusal read as a button that did nothing.
 - **Never let the Supabase client see an error link.** `supabase-js` deletes
   the saved session when the URL carries `error_description`, which is how an
   expired email link arrives. `app.js` strips it before `createClient` runs.
@@ -176,7 +181,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by code and by pasted link, day and category filtering, the
 to-book view, adding and editing and deleting a stop, the reservation subform,
 cost maths, geocoding, manual coordinates, the Apple Maps links, and the
-desktop layout. 65 assertions, all passing as shipped.
+desktop layout. 69 assertions, all passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
 whether OpenFreeMap tiles actually render, whether Supabase RLS admits the
