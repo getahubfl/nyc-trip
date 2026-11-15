@@ -118,6 +118,9 @@ window.maplibregl = {
       const type = f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? 'text/javascript' : 'text/html';
       return route.fulfill({ contentType: type, body: fs.readFileSync(path, 'utf8') });
     }
+    if (url.includes('photon.komoot.io')) {
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: [
+        { properties: { name: 'Quality Italian', housenumber: '57', street: 'West 57th Street' }, geometry: { coordinates: [-73.97677, 40.76457] } }] }) }); }
     if (url.includes('nominatim')) return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify([{ lat: '40.7223', lon: '-73.9874', display_name: 'stubbed match, New York' }]) });
     return route.abort();
@@ -307,7 +310,7 @@ window.maplibregl = {
   await q.goto('http://local/index.html');
   await q.waitForTimeout(800);
   ok('app shown when signed in', await q.locator('#app:not([hidden])').count() === 1);
-  ok('six day tabs', await q.locator('#rail .day:not(.day-all)').count() === 6);
+  ok('four day tabs, ending Saturday', await q.locator('#rail .day:not(.day-all)').count() === 4);
   ok('nine category chips', await q.locator('#chips .chip').count() === 9);
   ok('empty day renders a prompt', (await q.locator('#list').innerText()).includes('wide open'));
   ok('sync badge is live', await q.locator('#sync.on').count() === 1);
@@ -328,6 +331,11 @@ window.maplibregl = {
   ok('blank title rejected', await q.locator('#f-err:not([hidden])').count() === 1);
 
   await q.fill('#f-title', "Katz's Delicatessen");
+  ok('the place/spot switch is shown', await q.locator('#f-kindrow:not([hidden])').count() === 1);
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(250);
+  ok('saving without place or spot is refused', (await q.locator('#f-err').innerText()).includes('place or an exact spot'));
+  await q.locator('#f-kind [data-kind="place"]').click();
   await q.fill('#f-addr', '205 E Houston St');
   await q.locator('#f-cats [data-cat="lunch"]').click();
   await q.fill('#f-time', '12:30');
@@ -351,6 +359,7 @@ window.maplibregl = {
   ok('stop saved to the database', await q.evaluate(() => window.__rows.length) === 1);
   const row = await q.evaluate(() => window.__rows[0]);
   ok('saved as snake_case columns', 'cost_per_person' in row && 'needs_reservation' in row, JSON.stringify(Object.keys(row)).slice(0,120));
+  ok('place or spot saved', row.map_kind === 'place');
   ok('reservation captured', row.needs_reservation === true && row.booked === true && row.confirmation === 'KZ-8841');
   ok('extras captured', Array.isArray(row.extras) && row.extras[0].amount === 18);
   ok('queued for geocoding', row.geo_status === 'pending' || row.geo_status === 'ok', row.geo_status);
@@ -439,10 +448,33 @@ window.maplibregl = {
   await q.waitForTimeout(400);
   await q.fill('#f-title', 'Levain Bakery');
   await q.locator('#f-cats [data-cat="snacks"]').click();
+  await q.locator('#f-kind [data-kind="spot"]').click();
   await q.locator('[data-save]').click();
   await q.waitForTimeout(600);
   ok('snacks saved as the category', await q.evaluate(() => window.__rows[0].category) === 'snacks');
   ok('snacks shown on the stop', (await q.locator('.stop .tags').innerText()).includes('Snacks'));
+
+  ok('an exact spot with no address is not searched by name', await q.evaluate(() => window.__rows[0].geo_status) === 'none');
+
+  console.log('\n— PLACE SUGGESTIONS —');
+  await q.locator('#fab').click();
+  await q.waitForTimeout(400);
+  await q.fill('#f-title', 'Dinner @ Quality Italian');
+  await q.locator('#f-kind [data-kind="place"]').click();
+  await q.locator('#f-place').pressSequentially('qu', { delay: 30 });
+  await q.waitForTimeout(600);
+  ok('no suggestions under 3 characters', await q.locator('#f-suggest[hidden]').count() === 1);
+  await q.locator('#f-place').pressSequentially('ality', { delay: 30 });
+  await q.waitForTimeout(800);
+  ok('suggestions appear as you type', await q.locator('#f-suggest button').count() === 1);
+  await q.locator('#f-suggest button').first().click();
+  ok('picking one fills the address and pin', await q.inputValue('#f-addr') === '57 West 57th Street' && (await q.inputValue('#f-lat')).startsWith('40.7645'));
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  const qi = await q.evaluate(() => window.__rows.find(r => r.place_name === 'Quality Italian'));
+  ok('business name saved', !!qi && qi.address === '57 West 57th Street');
+  const link = await q.locator('.stop a.where').first().getAttribute('href');
+  ok('a place opens Apple Maps by name', link.startsWith('https://maps.apple.com/?q=Quality%20Italian&sll=40.76457'), link);
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
