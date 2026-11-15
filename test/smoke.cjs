@@ -125,7 +125,7 @@ window.maplibregl = {
     if (url.includes('api.transitous.org')) return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify({ itineraries: [
         { duration: 1140, legs: [{ mode: 'WALK' }, { mode: 'BUS', routeShortName: 'M7' }, { mode: 'WALK' }] },
-        { duration: 960, legs: [{ mode: 'WALK' }, { mode: 'SUBWAY', routeShortName: 'D', legGeometry: { points: '_p~iF~ps|U_ulLnnqC', precision: 5 } }, { mode: 'SUBWAY', routeShortName: '1' }, { mode: 'WALK' }] }] }) });
+        { duration: 960, legs: [{ mode: 'WALK', legGeometry: { points: '_p~iF~ps|U_ulL', precision: 5 } }, { mode: 'SUBWAY', routeShortName: 'D', legGeometry: { points: '_p~iF~ps|U_ulLnnqC', precision: 5 } }, { mode: 'SUBWAY', routeShortName: '1' }, { mode: 'WALK', legGeometry: { points: '_p~iF~ps|U_ulL', precision: 5 } }] }] }) });
     if (url.includes('photon.komoot.io')) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: [
         { properties: { name: 'Quality Italian', housenumber: '57', street: 'West 57th Street' }, geometry: { coordinates: [-73.97677, 40.76457] } }] }) }); }
@@ -503,6 +503,7 @@ window.maplibregl = {
   ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
   ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
   ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
+  ok('the leg says it can be tapped', (await q.locator('.leg .legcta').first().innerText()).startsWith('Show routes'));
 
   console.log('\n— ROUTES ON THE MAP —');
   const lineLen = id => q.evaluate(i => { const d = window.__map._src[i].data; return d.features.map(f => f.geometry.coordinates.length); }, id);
@@ -514,6 +515,9 @@ window.maplibregl = {
      (await lineLen('legwalk')).length === 1 && (await lineLen('legcar')).length === 1 && (await lineLen('legsub')).length === 1 &&
      await q.locator('#legKey:not([hidden])').count() === 1, JSON.stringify([await lineLen('legwalk'), await lineLen('legcar'), await lineLen('legsub')]));
   ok('the day route steps aside for the tapped leg', (await lineLen('route')).length === 0);
+  ok('the subway trip includes the walks to and from the train', (await lineLen('legsubwalk')).length === 2);
+  ok('a dot at each end of each path', await q.evaluate(() => window.__map._src.legends.data.features.length) === 6);
+  ok('the tapped leg offers to hide the routes', (await q.locator('.leg.on .legcta').innerText()) === 'Hide routes');
   await q.locator('#legKeyClose').click();
   await q.waitForTimeout(300);
   ok('closing the key brings the day route back', JSON.stringify(await lineLen('route')) === '[4]' && await q.locator('#legKey[hidden]').count() === 1);

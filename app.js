@@ -416,7 +416,7 @@ const Map_ = {
          that leg is tapped in the list. Static picture, not navigation. */
       const empty = { type: 'FeatureCollection', features: [] };
       const round = { 'line-cap': 'round', 'line-join': 'round' };
-      ['route', 'legcar', 'legsub', 'legwalk'].forEach(id => this.map.addSource(id, { type: 'geojson', data: empty }));
+      ['route', 'legcar', 'legsub', 'legsubwalk', 'legwalk', 'legends'].forEach(id => this.map.addSource(id, { type: 'geojson', data: empty }));
       this.map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: round,
         paint: { 'line-color': '#111111', 'line-width': 2.6, 'line-opacity': 0.8 } });
       this.map.addLayer({ id: 'legcar-case', type: 'line', source: 'legcar', layout: round,
@@ -425,8 +425,14 @@ const Map_ = {
         paint: { 'line-color': '#FCCC0A', 'line-width': 2.2 } });
       this.map.addLayer({ id: 'legsub', type: 'line', source: 'legsub', layout: round,
         paint: { 'line-color': '#0A62C9', 'line-width': 2.4 } });
+      this.map.addLayer({ id: 'legsubwalk', type: 'line', source: 'legsubwalk', layout: round,
+        paint: { 'line-color': '#0A62C9', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
       this.map.addLayer({ id: 'legwalk', type: 'line', source: 'legwalk', layout: round,
         paint: { 'line-color': '#111111', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
+      // A small dot in the path's colour at each end of each path; for the
+      // subway, the stations where the train is boarded and left.
+      this.map.addLayer({ id: 'legends', type: 'circle', source: 'legends',
+        paint: { 'circle-radius': 4, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 1.5 } });
       // MapLibre opens the compact credits expanded, a wide box across the
       // bottom of a phone-sized map. Start it folded to its (i) button.
       document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show').forEach(el => {
@@ -498,7 +504,19 @@ const Map_ = {
     const r = mode => leg ? Route.get(mode, a, b) : null;
     this.map.getSource('legwalk').setData(fc(leg ? [(r('walk') || {}).path || straight(a, b)] : []));
     this.map.getSource('legcar').setData(fc(leg && r('car') ? [r('car').path] : []));
-    this.map.getSource('legsub').setData(fc(leg && r('sub') && r('sub').paths ? r('sub').paths : []));
+    const sub = leg && r('sub') && !r('sub').none ? r('sub') : null;
+    this.map.getSource('legsub').setData(fc(sub && sub.paths ? sub.paths : []));
+    this.map.getSource('legsubwalk').setData(fc(sub && sub.walks ? sub.walks : []));
+
+    const ends = [];
+    const mark = (path, color) => { if (path && path.length > 1) ends.push([path[0], color], [path[path.length - 1], color]); };
+    if (leg) {
+      mark((r('walk') || {}).path, '#111111');
+      mark((r('car') || {}).path, '#FCCC0A');
+      (sub && sub.paths || []).forEach(p => mark(p, '#0A62C9'));
+    }
+    this.map.getSource('legends').setData({ type: 'FeatureCollection', features: ends.map(([c, color]) =>
+      ({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: c } })) });
   },
 
   // Frame one leg: both stops and every line drawn for it.
@@ -509,6 +527,7 @@ const Map_ = {
       const r = Route.get(mode, a, b);
       if (r && r.path) pts.push(...r.path);
       if (r && r.paths) r.paths.forEach(p => pts.push(...p));
+      if (r && r.walks) r.walks.forEach(p => pts.push(...p));
     }
     const bounds = new maplibregl.LngLatBounds();
     pts.forEach(p => bounds.extend(p));
@@ -799,7 +818,7 @@ function renderList() {
    ============================================================ */
 const CAR_MPH = 8;
 const ROUTE_TTL = { walk: 30, car: 30, sub: 7 };   // days
-const ROUTE_STORE = 'nyc-trip-route2:';   // 2: routes carry their shape for the map
+const ROUTE_STORE = 'nyc-trip-route3:';   // 3: subway trips carry their walks to and from stations
 const trim = path => path.map(([x, y]) => [Math.round(x * 1e5) / 1e5, Math.round(y * 1e5) / 1e5]);
 // Google's encoded polyline, which Transitous uses for each leg's shape.
 function decodePolyline(str, precision = 6) {
@@ -891,11 +910,12 @@ const Route = {
     if (!its.length) return { none: true };
     const best = its.reduce((x, y) => (y.duration < x.duration ? y : x));
     const lines = best.legs.filter(l => l.mode === 'SUBWAY' && l.routeShortName).map(l => l.routeShortName);
-    // Only the train part of the trip is drawn; the walks to and from the
-    // station are left out.
-    const paths = best.legs.filter(l => l.mode === 'SUBWAY' && l.legGeometry && l.legGeometry.points)
-      .map(l => trim(decodePolyline(l.legGeometry.points, l.legGeometry.precision ?? 6)));
-    return { min: Math.max(1, Math.round(best.duration / 60)), lines: [...new Set(lines)], paths };
+    // The whole trip is drawn: train legs solid, the walks to, between and
+    // from stations dotted. A bus leg in the same trip is drawn as a walk.
+    const shape = l => l.legGeometry && l.legGeometry.points ? trim(decodePolyline(l.legGeometry.points, l.legGeometry.precision ?? 6)) : null;
+    const paths = best.legs.filter(l => l.mode === 'SUBWAY').map(shape).filter(Boolean);
+    const walks = best.legs.filter(l => l.mode !== 'SUBWAY').map(shape).filter(Boolean);
+    return { min: Math.max(1, Math.round(best.duration / 60)), lines: [...new Set(lines)], paths, walks };
   }
 };
 
@@ -918,9 +938,11 @@ function legHTML(a, b) {
   const chip = (mode, r, label) => r === null ? ''
     : `<span class="mode" title="${label}">${ICON[mode]}${r === undefined ? '…' : esc(fmtMin(r.min))}`
       + (mode === 'sub' && r && r.lines && r.lines.length ? `<i>${r.lines.map(esc).join(' › ')}</i>` : '') + `</span>`;
+  const on = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
   return `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`
     + `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
-    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`;
+    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`
+    + `<span class="legcta">${on ? 'Hide routes' : 'Show routes ›'}</span>`;
 }
 // The same, as one line of plain text, for the stop detail sheet.
 function legPlain(a, b) {
