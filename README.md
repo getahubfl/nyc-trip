@@ -22,8 +22,20 @@ addresses. Those two addresses are the only ones that will ever be able to read
 or write the trip. Run it.
 
 Then **Authentication → URL Configuration**: add your GitHub Pages URL (from
-step 3, so come back to this) to **Redirect URLs**. Magic links bounce without
-it.
+step 3, so come back to this) to **Redirect URLs**. Emailed links bounce
+without it.
+
+Then **Authentication → Emails**: in both the **Magic Link** and the **Confirm
+signup** template, add a line with the sign-in code:
+
+```html
+<p>Your code: <strong>{{ .Token }}</strong></p>
+```
+
+The app signs in by that code rather than by the link, because a link signs in
+whichever browser opens it — on a phone, usually the mail app's own. Without
+this line the email has no code, and the only way in on a phone is to copy the
+link out of the email and paste it into the app.
 
 ## 2. Local config
 
@@ -109,6 +121,13 @@ reservation across the whole trip.
 stop has editable lat/lng; typing coordinates by hand permanently overrides the
 lookup.
 
+Tap any address to open it in Apple Maps. **Directions** in a stop's detail
+goes to its pin.
+
+**On an iPhone**, open the site in Safari, then Share → **Add to Home Screen**.
+The icon opens the trip full screen. It keeps its own sign-in, separate from
+Safari's, so it asks for a code once and then stays signed in.
+
 ## Tests
 
 ```bash
@@ -116,7 +135,7 @@ npm install          # playwright
 node test/smoke.cjs
 ```
 
-Runs fully offline against stubs. 42 assertions.
+Runs fully offline against stubs. 65 assertions.
 
 ## Attribution
 

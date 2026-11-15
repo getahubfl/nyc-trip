@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>New York — Thanksgiving 2026</title>
 <meta name="theme-color" content="#1B4F4B">
+
+<!-- Home Screen app. Added from Safari's Share menu, the page opens full
+     screen under its own icon, with its own saved sign-in. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="New York">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗽</text></svg>">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +38,17 @@
         <label for="gateEmail">YOUR EMAIL</label>
         <input id="gateEmail" type="email" required autocomplete="email" placeholder="you@example.com">
       </div>
-      <button class="btn primary" id="gateSend" type="submit">Send me a link</button>
+      <button class="btn primary" id="gateSend" type="submit">Send me a code</button>
+      <button class="addlink" id="gateHaveCode" type="button">I already have a code</button>
+    </form>
+    <form id="gateCodeForm" hidden>
+      <div class="f">
+        <label for="gateCode">CODE FROM THE EMAIL</label>
+        <input id="gateCode" type="text" inputmode="numeric" autocomplete="one-time-code" required placeholder="123456">
+        <div class="hint">No code in the email? Press and hold its Sign in button, copy the link, and paste it here instead.</div>
+      </div>
+      <button class="btn primary" id="gateVerify" type="submit">Sign in</button>
+      <button class="addlink" id="gateRestart" type="button">Start over</button>
     </form>
     <p class="gate-msg" id="gateMsg"></p>
   </div>

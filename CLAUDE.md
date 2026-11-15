@@ -45,7 +45,7 @@ Everything here is on a free tier with no credit card anywhere.
 | Hosting | GitHub Pages | Free on a free account for public repos. Static only, which is all this is. |
 | Map | MapLibre GL JS + OpenFreeMap | Free, no API key, no card, no request limits. OSM data. Google and Mapbox both want a card on file. |
 | Data + live sync | Supabase (Postgres + Realtime) | Realtime pushes row changes over a websocket, which is the "both phones update" requirement. |
-| Auth | Supabase magic link | No passwords. Restricted to an allow-list of two emails. |
+| Auth | Supabase emailed code | No passwords. Restricted to an allow-list of two emails. The code is typed in, not followed as a link — see Conventions. |
 | Geocoding | Nominatim (OpenStreetMap) | Free, no key. Rate limited to one request per second by policy. |
 | Keepalive | GitHub Actions cron | Free Supabase projects pause after 7 days idle; a paused project cold-starts in 10–30s. |
 
@@ -73,6 +73,8 @@ GitHub secret used by the Pages workflow, never in the repo.
 
 ```
 index.html              page shell, auth gate, map container
+manifest.webmanifest    makes "Add to Home Screen" a full-screen app
+icons/                  Home Screen icon: icon.svg is the source, PNGs rendered from it
 styles.css              all styling (mid-century modern, see below)
 app.js                  the whole application, ES module
 config.example.js       template — copy to config.js with real values
@@ -83,7 +85,7 @@ supabase/schema.sql     tables, RLS policies, realtime, heartbeat. Run once.
 private/                gitignored
   itinerary.json        the real 31 stops
   seed.mjs              one-time loader into Supabase
-test/smoke.js           Playwright suite, runs fully offline against stubs
+test/smoke.cjs          Playwright suite, runs fully offline against stubs
 ```
 
 `app.js` is organised top to bottom as: reference data → utilities → row
@@ -113,6 +115,20 @@ sheet/detail/form → global event handling → auth gate → boot.
   `geo_status = 'manual'` and the lookup will not overwrite it.
 - **Nominatim is one request per second, serialised.** Do not parallelise the
   geocoding queue. Their usage policy is the constraint, not performance.
+- **Sign-in is a typed code, not a followed link.** A link signs in whichever
+  browser opens it, and on an iPhone that is the mail app's built-in browser —
+  not Safari, and never the Home Screen app, which keeps its own separate
+  sign-in. The gate asks for the code from the email and signs in the browser
+  it is typed into. The same field accepts the email's link pasted in, which
+  is the fallback when the email carries no code. The pending code survives a
+  reload (`PENDING_KEY`), because leaving for the mail app can reload the page.
+- **Never let the Supabase client see an error link.** `supabase-js` deletes
+  the saved session when the URL carries `error_description`, which is how an
+  expired email link arrives. `app.js` strips it before `createClient` runs.
+- **Addresses open Apple Maps.** Both travellers carry iPhones.
+  `mapsSearchUrl` hands over the address text as a search; `mapsDirectionsUrl`
+  goes to the pin. The list row is a `div.stop` whose title is the button,
+  stretched over the row in CSS, so the address can be a real link inside it.
 
 ## Design direction
 
@@ -146,7 +162,9 @@ See `README.md` for the full walkthrough. Short version:
 4. Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` as repository secrets so the
    deploy workflow can write `config.js`.
 5. In Supabase Auth → URL Configuration, add the Pages URL to the allowed
-   redirect URLs, or the magic link will bounce.
+   redirect URLs, or the emailed link will bounce. In Auth → Emails, add
+   `{{ .Token }}` to the **Magic Link** and **Confirm signup** templates so
+   the email carries the code the gate asks for.
 6. Seed once: `SUPABASE_URL=… SUPABASE_SERVICE_KEY=… node private/seed.mjs`
 7. Open the site, sign in, and let the pins fill in (~35 seconds for 31 stops
    at one lookup per second).
@@ -155,16 +173,18 @@ See `README.md` for the full walkthrough. Short version:
 
 `node test/smoke.cjs` runs a Playwright suite with Supabase, MapLibre and
 Nominatim all stubbed, so it works with no network and no credentials. It
-covers the auth gate, day and category filtering, the to-book view, adding and
-editing and deleting a stop, the reservation subform, cost maths, geocoding,
-manual coordinates, and the desktop layout. 42 assertions, all passing as
-shipped.
+covers sign-in by code and by pasted link, day and category filtering, the
+to-book view, adding and editing and deleting a stop, the reservation subform,
+cost maths, geocoding, manual coordinates, the Apple Maps links, and the
+desktop layout. 65 assertions, all passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
 whether OpenFreeMap tiles actually render, whether Supabase RLS admits the
 right people, and whether realtime actually pushes between two browsers. Verify
 those three by hand on the first deploy — open the site in two windows and add
-a stop in one.
+a stop in one. It also cannot cover a real code email arriving from Supabase,
+or anything an iPhone does: the Home Screen app, its saved sign-in, and Apple
+Maps opening. Those need a phone.
 
 ## Open product questions
 

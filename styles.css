@@ -83,9 +83,9 @@ button{cursor:pointer;border:0;background:none}
   -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
   mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
 .chips::-webkit-scrollbar{display:none}
-/* Filter is collapsed by default: eight category chips permanently eating a
+/* Filter is collapsed by default: nine category chips permanently eating a
    toolbar row is a lot of furniture on a phone for something used rarely.
-   The button shows "3/8" when narrowed so a filtered view is never silent. */
+   The button shows "3/9" when narrowed so a filtered view is never silent. */
 .filterbtn{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
   border:1.5px solid var(--ink);color:var(--ink);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
 .filterbtn b{font-weight:600}
@@ -183,8 +183,14 @@ button{cursor:pointer;border:0;background:none}
 .empty h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0 0 6px;color:var(--ink)}
 .empty p{margin:0 0 14px;font-size:14px}
 
-.stop{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;padding:0;background:none;border:0;
-  width:100%;text-align:left;position:relative}
+.stop{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;position:relative}
+/* The title is the row's button. Its ::after is stretched over the whole row,
+   so the entire card still opens the stop; the address link is lifted above
+   that layer, so it alone goes to Maps. */
+.stop-open{display:block;width:100%;padding:0;text-align:left;letter-spacing:inherit}
+.stop-open::after{content:"";position:absolute;inset:0}
+.stop-open:focus-visible{outline:0}
+.stop-open:focus-visible::after{outline:3px solid var(--mustard);outline-offset:2px}
 .stop + .leg{margin:0 0 0 22px}
 .leg{border-left:2px dotted var(--paper-3);padding:7px 0 7px 22px;margin-left:22px;font-size:12px;color:var(--ink-soft);
   font-family:var(--display);letter-spacing:.06em}
@@ -194,7 +200,11 @@ button{cursor:pointer;border:0;background:none}
 .card{border-bottom:1px solid var(--paper-3);padding-bottom:14px;min-width:0}
 .card h3{font-family:var(--display);font-weight:500;font-size:19px;line-height:1.15;margin:3px 0 3px;letter-spacing:-.005em}
 .card .when{font-family:var(--display);font-size:13px;letter-spacing:.09em;color:var(--ink-soft)}
-.card .where{font-size:13.5px;color:var(--ink-soft);margin-top:2px;overflow-wrap:anywhere}
+/* The address opens Apple Maps. The padding widens the tap area well past the
+   13.5px text, and the matching negative margin keeps the layout where it was. */
+.card .where{display:block;width:fit-content;max-width:100%;position:relative;z-index:1;
+  font-size:13.5px;color:var(--teal);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere;
+  padding:8px 0;margin:-8px 0}
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
 .tag{font-family:var(--display);font-size:11px;letter-spacing:.09em;padding:2.5px 7px;border:1.2px solid currentColor;border-radius:2px}
 .tag.solid{border-color:transparent;color:var(--paper)}
@@ -378,6 +388,7 @@ button{cursor:pointer;border:0;background:none}
 .gate-card .mast-title{font-size:38px;margin:0 0 2px}
 .gate-sub{font-family:var(--display);font-size:13px;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 22px}
 .gate-card .btn{width:100%}
+.gate-card .addlink{margin-top:14px;padding:8px 0 2px}
 .gate-msg{font-size:13.5px;color:var(--ink-soft);margin:14px 0 0;min-height:1.2em}
 
 /* ---------- live-sync badge ---------- */
@@ -387,3 +398,11 @@ button{cursor:pointer;border:0;background:none}
 .sync.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;
   border:1.5px solid var(--olive);opacity:.45;animation:pulse 2.4s ease-out infinite}
 @keyframes pulse{0%{transform:scale(.7);opacity:.55}100%{transform:scale(1.5);opacity:0}}
+
+/* ---------- Home Screen app ---------- */
+/* index.html asks iOS for a translucent status bar, which lays the page out
+   underneath the clock. :root's top padding clears it at rest, but the list
+   would scroll up behind it. This fixed band keeps the clock on petrol. It
+   has no height wherever there is no inset, Safari included. */
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);
+  background:var(--petrol-deep);z-index:90}

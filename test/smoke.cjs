@@ -40,12 +40,24 @@ function table(name){
 }
 export function createClient(){
   window.__rows = rows;
+  window.__urlAtClientStart = location.href;
   return {
     from: table,
     channel(){ return { on(){ return this; }, subscribe(cb){ cb && cb('SUBSCRIBED'); return this; } }; },
     auth: {
-      getSession: async () => ({ data: { session: window.__signedIn === false ? null : { user: { email: 'you@example.com' } } } }),
-      signInWithOtp: async () => ({ error: null }),
+      // sessionStorage stands in for the saved session: per tab, and it
+      // survives the reload that follows a successful sign-in.
+      getSession: async () => ({ data: { session: (window.__signedIn === false && !sessionStorage.getItem('stubSession'))
+        ? null : { user: { email: 'you@example.com' } } } }),
+      signInWithOtp: async ({ email }) => email === 'limit@example.com'
+        ? { error: { message: 'email rate limit exceeded' } }
+        : { error: null },
+      // Accepts the code 123456 or the link token abc123, as /verify would.
+      verifyOtp: async (a) => {
+        if (a.token !== '123456' && a.token_hash !== 'abc123') return { error: { message: 'Token has expired or is invalid' } };
+        sessionStorage.setItem('stubSession', JSON.stringify(a));
+        return { data: {}, error: null };
+      },
       signOut: async () => ({ error: null }),
       onAuthStateChange(){ return { data: { subscription: { unsubscribe(){} } } }; }
     }
@@ -62,7 +74,7 @@ window.maplibregl = {
     on(e, f){ (this._h[e] = this._h[e] || []).push(f); }
     addControl(){} addSource(id, s){ this._src[id] = { setData(d){ this.data = d; } }; }
     addLayer(){} getSource(id){ return this._src[id]; }
-    getZoom(){ return this._z; } easeTo(){} fitBounds(){}
+    getZoom(){ return this._z; } easeTo(){} fitBounds(){} resize(){}
   },
   Marker: class {
     constructor(o){ this.el = o && o.element; }
@@ -110,11 +122,77 @@ window.maplibregl = {
   await p.waitForTimeout(600);
   ok('gate shown when signed out', await p.locator('#gate:not([hidden])').count() === 1);
   ok('app hidden when signed out', await p.locator('#app[hidden]').count() === 1);
+  await p.fill('#gateEmail', 'limit@example.com');
+  await p.locator('#gateSend').click();
+  await p.waitForTimeout(300);
+  ok('rate limit explained in plain words', (await p.locator('#gateMsg').innerText()).includes('few sign-in emails an hour'));
+  ok('stays on the email step when nothing was sent', await p.locator('#gateCodeForm[hidden]').count() === 1);
+
   await p.fill('#gateEmail', 'you@example.com');
   await p.locator('#gateSend').click();
   await p.waitForTimeout(300);
-  ok('magic-link confirmation shown', (await p.locator('#gateMsg').innerText()).includes('Check you@example.com'));
+  ok('code confirmation shown', (await p.locator('#gateMsg').innerText()).includes('Check you@example.com'));
+  ok('moves to the code step', await p.locator('#gateCodeForm:not([hidden])').count() === 1 && await p.locator('#gateForm[hidden]').count() === 1);
+
+  // Leaving for the mail app can cost the page its state. It must come back
+  // asking for the code, not for another email.
+  await p.reload();
+  await p.waitForTimeout(600);
+  ok('a reload comes back to the code step', await p.locator('#gateCodeForm:not([hidden])').count() === 1);
+
+  await p.fill('#gateCode', '000000');
+  await p.locator('#gateVerify').click();
+  await p.waitForTimeout(300);
+  ok('wrong code refused with a reason', (await p.locator('#gateMsg').innerText()).includes('did not work') && await p.locator('#gate:not([hidden])').count() === 1);
+
+  await p.fill('#gateCode', '123456');
+  await p.locator('#gateVerify').click();
+  await p.waitForTimeout(900);
+  ok('right code signs this browser in', await p.locator('#app:not([hidden])').count() === 1);
+  const viaCode = await p.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')));
+  ok('code checked against the email it was sent to', viaCode.email === 'you@example.com' && viaCode.token === '123456' && viaCode.type === 'email', JSON.stringify(viaCode));
   ok('no errors on the gate', errs.length === 0, errs.join(' | '));
+
+  console.log('\n— SIGN IN BY PASTED LINK —');
+  const r = await ctx.newPage();
+  await r.addInitScript(() => { window.__signedIn = false; });
+  await r.goto('http://local/index.html');
+  await r.waitForTimeout(600);
+  ok('signing in clears the awaited code', await r.locator('#gateForm:not([hidden])').count() === 1);
+  await r.fill('#gateEmail', 'you@example.com');
+  await r.locator('#gateHaveCode').click();
+  await r.waitForTimeout(200);
+  ok('"I already have a code" skips the email', await r.locator('#gateCodeForm:not([hidden])').count() === 1);
+  await r.fill('#gateCode', 'https://x.supabase.co/auth/v1/verify?token=abc123&type=magiclink&redirect_to=http://local/');
+  await r.locator('#gateVerify').click();
+  await r.waitForTimeout(900);
+  ok('pasted link signs this browser in', await r.locator('#app:not([hidden])').count() === 1);
+  const viaLink = await r.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')));
+  ok('link redeemed by its token', viaLink.token_hash === 'abc123' && viaLink.type === 'email', JSON.stringify(viaLink));
+  await r.close();
+
+  // A mail app may copy the link wrapped inside its own redirect.
+  const w = await ctx.newPage();
+  await w.addInitScript(() => { window.__signedIn = false; });
+  await w.goto('http://local/index.html');
+  await w.waitForTimeout(600);
+  await w.fill('#gateEmail', 'you@example.com');
+  await w.locator('#gateHaveCode').click();
+  await w.fill('#gateCode', 'https://www.google.com/url?q=' + encodeURIComponent('https://x.supabase.co/auth/v1/verify?token=abc123&type=magiclink'));
+  await w.locator('#gateVerify').click();
+  await w.waitForTimeout(900);
+  ok('wrapped link still signs in', await w.locator('#app:not([hidden])').count() === 1);
+  await w.close();
+
+  console.log('\n— EXPIRED LINK —');
+  const x = await ctx.newPage();
+  await x.addInitScript(() => { window.__signedIn = false; });
+  await x.goto('http://local/index.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired');
+  await x.waitForTimeout(600);
+  ok('expired link explained on the gate', (await x.locator('#gateMsg').innerText()).includes('expired or was already used'));
+  // supabase-js deletes the saved session if it sees these parameters.
+  ok('error stripped before the Supabase client starts', !(await x.evaluate(() => window.__urlAtClientStart)).includes('error'));
+  await x.close();
 
   console.log('\n— SIGNED IN, EMPTY TRIP —');
   const q = await ctx.newPage();
@@ -124,10 +202,16 @@ window.maplibregl = {
   await q.goto('http://local/index.html');
   await q.waitForTimeout(800);
   ok('app shown when signed in', await q.locator('#app:not([hidden])').count() === 1);
-  ok('six day tabs', await q.locator('#rail .day').count() === 6);
-  ok('eight category chips', await q.locator('#chips .chip').count() === 8);
+  ok('six day tabs', await q.locator('#rail .day:not(.day-all)').count() === 6);
+  ok('nine category chips', await q.locator('#chips .chip').count() === 9);
   ok('empty day renders a prompt', (await q.locator('#list').innerText()).includes('wide open'));
   ok('sync badge is live', await q.locator('#sync.on').count() === 1);
+
+  console.log('\n— HOME SCREEN APP —');
+  const manifest = JSON.parse(fs.readFileSync(ROOT + '/' + await q.locator('link[rel="manifest"]').getAttribute('href'), 'utf8'));
+  ok('manifest opens full screen', manifest.display === 'standalone');
+  ok('manifest icons exist', manifest.icons.length > 0 && manifest.icons.every(i => fs.existsSync(ROOT + '/' + i.src)));
+  ok('iOS icon exists', fs.existsSync(ROOT + '/' + await q.locator('link[rel="apple-touch-icon"]').getAttribute('href')));
 
   console.log('\n— ADD A STOP —');
   await q.locator('#fab').click();
@@ -174,15 +258,27 @@ window.maplibregl = {
   ok('coordinates resolved from Nominatim', Math.abs(geo.lat - 40.7223) < 1e-6, JSON.stringify([geo.lat, geo.lng, geo.geoStatus]));
   ok('marker drawn on the map', await q.evaluate(() => window.__markers > 0));
 
+  console.log('\n— APPLE MAPS —');
+  const whereHref = await q.locator('.stop a.where').getAttribute('href');
+  ok('list address links to Apple Maps', whereHref.startsWith('https://maps.apple.com/?q=205%20E%20Houston%20St'), whereHref);
+  const hits = await q.evaluate(() => {
+    document.querySelector('.stop').scrollIntoView({ block: 'center' });
+    const at = el => { const b = el.getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); };
+    return { link: at(document.querySelector('.stop a.where')).className, marker: at(document.querySelector('.stop .marker')).className };
+  });
+  ok('a tap on the address lands on the link', hits.link === 'where', hits.link);
+  ok('a tap elsewhere on the card opens the stop', hits.marker === 'stop-open', hits.marker);
+
   console.log('\n— DETAIL SHEET —');
-  await q.locator('.stop').first().click();
+  await q.locator('.stop-open').first().click();
   await q.waitForTimeout(400);
   ok('sheet opens', await q.locator('#sheet.open').count() === 1);
   ok('cost grid shown for a priced stop', await q.locator('.costgrid b').count() === 2);
   const cg = await q.locator('.costgrid b').allTextContents();
   ok('per-person and total correct', cg[0] === '$32' && cg[1] === '$146', JSON.stringify(cg));
   ok('reservation bar reads Booked', (await q.locator('.resbar h4').innerText()).includes('Booked'));
-  ok('directions link offered', await q.locator('.d-row a[href*="google.com/maps"]').count() === 1);
+  ok('address opens in Apple Maps', await q.locator('.d-row a[href^="https://maps.apple.com/?q=205%20E%20Houston%20St"]').count() === 1);
+  ok('directions open in Apple Maps', await q.locator('.d-row a[href="https://maps.apple.com/?daddr=40.7223,-73.9874"]').count() === 1);
 
   console.log('\n— TOGGLE BOOKED —');
   await q.locator('[data-toggleres]').click();
@@ -215,6 +311,8 @@ window.maplibregl = {
   ok('marked manual so the lookup leaves it alone', man.geoStatus === 'manual', man.geoStatus);
 
   console.log('\n— CATEGORY FILTER —');
+  await q.locator('#filterBtn').click();
+  await q.waitForTimeout(200);
   await q.locator('#chips .chip[data-cat="lunch"]').click();
   await q.waitForTimeout(250);
   ok('deselecting the category hides the stop', await q.locator('.stop').count() === 0);
@@ -230,6 +328,16 @@ window.maplibregl = {
   await q.waitForTimeout(600);
   ok('removed from the database', await q.evaluate(() => window.__rows.length) === 0);
   ok('removed from the list', await q.locator('.stop').count() === 0);
+
+  console.log('\n— SNACKS CATEGORY —');
+  await q.locator('#fab').click();
+  await q.waitForTimeout(400);
+  await q.fill('#f-title', 'Levain Bakery');
+  await q.locator('#f-cats [data-cat="snacks"]').click();
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  ok('snacks saved as the category', await q.evaluate(() => window.__rows[0].category) === 'snacks');
+  ok('snacks shown on the stop', (await q.locator('.stop .tags').innerText()).includes('Snacks'));
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
