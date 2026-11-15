@@ -36,8 +36,10 @@ const CATS = [
   { id: 'lunch',     name: 'Lunch',       color: '#7FD3A0' },   // mint
   { id: 'dinner',    name: 'Dinner',      color: '#F48FB1' },   // pink
   { id: 'coffee',    name: 'Coffee',      color: '#B98E6E' },   // mocha
+  { id: 'matcha',    name: 'Matcha',      color: '#9DBF57' },   // matcha
   { id: 'snacks',    name: 'Snacks',      color: '#FFC9A3' },   // peach
   { id: 'sights',    name: 'Sightseeing', color: '#7FAEF0' },   // sky
+  { id: 'shopping',  name: 'Shopping',    color: '#F7745E' },   // coral
   { id: 'show',      name: 'Show',        color: '#D3B6FA' },   // lavender
   { id: 'travel',    name: 'Travel',      color: '#5FCBD3' },   // aqua
   { id: 'other',     name: 'Other',       color: '#E2E2DD' }    // stone
@@ -1737,10 +1739,13 @@ async function boot() {
        that stop was never retried again by anything, leaving it permanently
        unmapped and stuck on "Asking a cabbie…".
 
-       'manual' and 'cleared' stay excluded: both mean the user decided where
-       this stop is, or that it has no location. */
+       Only unfinished lookups are resumed. 'failed' is not retried here: an
+       address the lookup cannot find was otherwise looked up again on every
+       page load, for ever. A failed stop is retried when it is edited, or by
+       "Re-locate missing pins". 'manual' and 'cleared' mean the user decided
+       where this stop is, or that it has no location. */
     .filter(e => !hasLoc(e) && canLookup(e) &&
-      e.geoStatus !== 'manual' && e.geoStatus !== 'cleared')
+      (e.geoStatus === 'pending' || e.geoStatus === 'idle'))
     .forEach(e => Geo.enqueue(e.id));
 
   try { Map_.fit(); } catch (err) { console.warn('[boot] map fit failed', err); }

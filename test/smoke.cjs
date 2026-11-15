@@ -311,7 +311,8 @@ window.maplibregl = {
   await q.waitForTimeout(800);
   ok('app shown when signed in', await q.locator('#app:not([hidden])').count() === 1);
   ok('four day tabs, ending Saturday', await q.locator('#rail .day:not(.day-all)').count() === 4);
-  ok('nine category chips', await q.locator('#chips .chip').count() === 9);
+  ok('eleven category chips, with Shopping and Matcha', await q.locator('#chips .chip').count() === 11 &&
+     await q.locator('#chips [data-cat="shopping"]').count() === 1 && await q.locator('#chips [data-cat="matcha"]').count() === 1);
   ok('empty day renders a prompt', (await q.locator('#list').innerText()).includes('wide open'));
   ok('sync badge is live', await q.locator('#sync.on').count() === 1);
 
