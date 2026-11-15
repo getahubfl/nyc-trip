@@ -118,6 +118,14 @@ window.maplibregl = {
       const type = f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? 'text/javascript' : 'text/html';
       return route.fulfill({ contentType: type, body: fs.readFileSync(path, 'utf8') });
     }
+    if (url.includes('routing.openstreetmap.de/routed-foot')) return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ routes: [{ distance: 2080, duration: 1680 }] }) });
+    if (url.includes('routing.openstreetmap.de/routed-car')) return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ routes: [{ distance: 2400, duration: 240 }] }) });
+    if (url.includes('api.transitous.org')) return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify({ itineraries: [
+        { duration: 1140, legs: [{ mode: 'WALK' }, { mode: 'BUS', routeShortName: 'M7' }, { mode: 'WALK' }] },
+        { duration: 960, legs: [{ mode: 'WALK' }, { mode: 'SUBWAY', routeShortName: 'D' }, { mode: 'SUBWAY', routeShortName: '1' }, { mode: 'WALK' }] }] }) });
     if (url.includes('photon.komoot.io')) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: [
         { properties: { name: 'Quality Italian', housenumber: '57', street: 'West 57th Street' }, geometry: { coordinates: [-73.97677, 40.76457] } }] }) }); }
@@ -476,6 +484,25 @@ window.maplibregl = {
   ok('business name saved', !!qi && qi.address === '57 West 57th Street');
   const link = await q.locator('.stop a.where').first().getAttribute('href');
   ok('a place opens Apple Maps by name', link.startsWith('https://maps.apple.com/?q=Quality%20Italian&sll=40.76457'), link);
+
+  console.log('\n— TRAVEL BETWEEN STOPS —');
+  await q.evaluate(async () => {
+    const base = { day: '2026-11-25', duration_min: 60, status: 'confirmed', category: 'sights', people: 2, cost_per_person: 0, extras: [],
+      needs_reservation: false, booked: false, geo_status: 'manual', map_kind: 'place', place_name: '' };
+    window.__rows.length = 0;
+    window.__rows.push({ ...base, id: 'leg-a', time: '15:00', title: 'Hotel', lat: 40.7645, lng: -73.9830 },
+                       { ...base, id: 'leg-b', time: '16:30', title: 'Levain', lat: 40.7813, lng: -73.9797 });
+    await window.Data.load();
+    window.S.day = '2026-11-25'; window.S.toBookOnly = false;
+  });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(1500);
+  const leg = await q.locator('.leg').first().innerText();
+  ok('distance and blocks follow the walking route', leg.includes('1.3 mi') && leg.includes('26 blocks'), leg);
+  ok('walking time from the street route', leg.includes('28 min'), leg);
+  ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
+  ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
+  ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });

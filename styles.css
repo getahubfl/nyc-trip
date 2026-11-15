@@ -211,7 +211,14 @@ a{color:var(--link)}
 
 /* The walk to the next stop. A line runs from bullet to bullet, the way a
    strip map joins stations. */
-.leg{margin-left:19px;border-left:2px solid var(--line);padding:9px 0 9px 32px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.leg{margin-left:19px;border-left:2px solid var(--line);padding:9px 0 9px 32px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;
+  display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+/* Walking, car and subway, each an icon and a time. Ink, not colour: the
+   colour on this screen belongs to the stop bullets. */
+.leg .modes{display:inline-flex;flex-wrap:wrap;gap:4px 10px}
+.leg .mode{display:inline-flex;align-items:center;gap:4px;color:var(--ink-2);font-weight:600;white-space:nowrap}
+.leg .mode svg{width:15px;height:15px;fill:currentColor;flex:0 0 auto}
+.leg .mode i{font-style:normal;font-weight:500;color:var(--ink-3);margin-left:2px}
 .stop:has(+ .leg) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
 
 /* ---------- new stop ---------- */

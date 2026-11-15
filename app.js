@@ -669,6 +669,7 @@ function renderList() {
 
   let pinIdx = 0;
   let curDay = null;
+  const legs = [];
   list.forEach((e, i) => {
     const c = CAT[e.category] || CAT.other;
     const placed = hasLoc(e);
@@ -714,15 +715,136 @@ function renderList() {
       </div>
     </div>`;
 
-    // Walking legs only make sense between consecutive stops on the SAME day.
-    // In the whole-trip view the next stop may be tomorrow morning, which is
-    // not a walk.
+    // Legs only make sense between consecutive stops on the SAME day. In the
+    // whole-trip view the next stop may be tomorrow morning.
     const nxt = list[i + 1];
     if (!S.toBookOnly && nxt && nxt.day === e.day && placed && hasLoc(nxt)) {
-      html += `<div class="leg">${legText(haversine({ lat: e.lat, lng: e.lng }, { lat: nxt.lat, lng: nxt.lng }))}</div>`;
+      html += `<div class="leg" data-leg="${Route.key(e, nxt)}">${legHTML(e, nxt)}</div>`;
+      legs.push([e, nxt]);
     }
   });
   el.innerHTML = html;
+  legs.forEach(([a, b]) => Route.request(a, b));
+}
+
+/* ============================================================
+   TRAVEL BETWEEN STOPS — walking, car and subway, on every leg
+   Walking and car follow real streets: OSRM on the OpenStreetMap routing
+   service (routing.openstreetmap.de). Subway comes from Transitous
+   (api.transitous.org), a free public-transit planner with the MTA timetable,
+   asked for the time this stop ends. Both are free, keyless, and run by
+   volunteers, so: one request at a time with a gap between them, only for
+   the legs on screen, and every answer kept in this browser for days.
+
+   The routing service's car time assumes empty streets — four minutes from
+   Midtown to the Upper West Side. The car time shown is instead the route's
+   length at Manhattan's typical traffic speed (CAR_MPH), plus a couple of
+   minutes to get going, and never faster than the empty-street time.
+   ============================================================ */
+const CAR_MPH = 8;
+const ROUTE_TTL = { walk: 30, car: 30, sub: 7 };   // days
+const Route = {
+  mem: new Map(), queue: [], running: false, inflight: new Set(),
+
+  key(a, b) { return [a.lat, a.lng, b.lat, b.lng].map(n => n.toFixed(5)).join(','); },
+  // When the trip leaves the first stop, in New York time (EST in November).
+  leaves(a) {
+    const t = new Date(`${a.day}T${a.time || '12:00'}:00-05:00`);
+    return new Date(t.getTime() + (Number(a.durationMin) || 0) * 60000);
+  },
+  storeKey(mode, a, b) {
+    return 'nyc-trip-route:' + mode + ':' + this.key(a, b) + (mode === 'sub' ? ':' + this.leaves(a).toISOString().slice(0, 16) : '');
+  },
+  get(mode, a, b) {
+    const k = this.storeKey(mode, a, b);
+    if (this.mem.has(k)) return this.mem.get(k);
+    try {
+      const v = JSON.parse(localStorage.getItem(k));
+      if (v && Date.now() - v.at < ROUTE_TTL[mode] * 864e5) { this.mem.set(k, v.r); return v.r; }
+    } catch (err) { /* no storage */ }
+    return undefined;
+  },
+  put(mode, a, b, r) {
+    const k = this.storeKey(mode, a, b);
+    this.mem.set(k, r);
+    try { localStorage.setItem(k, JSON.stringify({ at: Date.now(), r })); } catch (err) { /* no storage */ }
+  },
+
+  request(a, b) {
+    for (const mode of ['walk', 'car', 'sub']) {
+      const k = this.storeKey(mode, a, b);
+      if (this.get(mode, a, b) !== undefined || this.inflight.has(k)) continue;
+      this.inflight.add(k);
+      this.queue.push([mode, a, b, k]);
+    }
+    this.run();
+  },
+  async run() {
+    if (this.running) return;
+    this.running = true;
+    while (this.queue.length) {
+      const [mode, a, b, k] = this.queue.shift();
+      let r = null;
+      try { r = await this.fetch(mode, a, b); } catch (err) { console.warn('[route]', mode, err); }
+      // A failure is remembered as null for this page load only, so it is not
+      // asked again and again, but is tried afresh next time the app opens.
+      if (r) this.put(mode, a, b, r); else this.mem.set(k, null);
+      this.inflight.delete(k);
+      const el = document.querySelector(`[data-leg="${this.key(a, b)}"]`);
+      if (el) el.innerHTML = legHTML(a, b);
+      await new Promise(res => setTimeout(res, 250));
+    }
+    this.running = false;
+  },
+  async fetch(mode, a, b) {
+    if (mode === 'walk' || mode === 'car') {
+      const res = await fetch(`https://routing.openstreetmap.de/routed-${mode === 'walk' ? 'foot' : 'car'}/route/v1/driving/`
+        + `${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`);
+      const r = (await res.json()).routes?.[0];
+      if (!r) return null;
+      const min = mode === 'walk' ? r.duration / 60
+        : Math.max(r.duration / 60, (r.distance / 1609.34) / CAR_MPH * 60 + 2);
+      return { m: Math.round(r.distance), min: Math.max(1, Math.round(min)) };
+    }
+    const res = await fetch(`https://api.transitous.org/api/v5/plan?fromPlace=${a.lat},${a.lng}&toPlace=${b.lat},${b.lng}`
+      + `&time=${this.leaves(a).toISOString()}&numItineraries=4`);
+    const its = ((await res.json()).itineraries || []).filter(it => it.legs.some(l => l.mode === 'SUBWAY'));
+    if (!its.length) return { none: true };
+    const best = its.reduce((x, y) => (y.duration < x.duration ? y : x));
+    const lines = best.legs.filter(l => l.mode === 'SUBWAY' && l.routeShortName).map(l => l.routeShortName);
+    return { min: Math.max(1, Math.round(best.duration / 60)), lines: [...new Set(lines)] };
+  }
+};
+
+const ICON = {
+  walk: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2"/><path d="M10.5 8.5 8 21h2.2l1.6-7 2.2 2v5h2v-6.5l-2.1-2 .6-3A6.5 6.5 0 0 0 19 12v-2a4.6 4.6 0 0 1-3.9-2.2l-1-1.6A2 2 0 0 0 12.4 5L7 7.3V12h2V8.7z"/></svg>',
+  car: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 6a1.5 1.5 0 0 0-1.4-1h-11a1.5 1.5 0 0 0-1.4 1L3 12v8a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h12v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-8zM6.5 16A1.5 1.5 0 1 1 8 14.5 1.5 1.5 0 0 1 6.5 16zm11 0a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zM5 11l1.5-4.5h11L19 11z"/></svg>',
+  sub: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c-4 0-8 .5-8 4v9.5A3.5 3.5 0 0 0 7.5 19L6 20.5v.5h2.2l2-2h3.6l2 2H18v-.5L16.5 19a3.5 3.5 0 0 0 3.5-3.5V6c0-3.5-4-4-8-4zM7.5 17A1.5 1.5 0 1 1 9 15.5 1.5 1.5 0 0 1 7.5 17zM11 10H6V6h5zm5.5 7a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm1.5-7h-5V6h5z"/></svg>'
+};
+const fmtMin = n => n >= 60 ? Math.floor(n / 60) + 'h' + (n % 60 ? ' ' + (n % 60) + 'm' : '') : n + ' min';
+
+/* Distance and blocks come from the walking route once it is in; until then,
+   and if it fails, from the straight line between the pins. A mode with no
+   answer yet shows a dash; one with no answer at all is left out. */
+function legHTML(a, b) {
+  const walk = Route.get('walk', a, b), car = Route.get('car', a, b), sub = Route.get('sub', a, b);
+  const m = walk ? walk.m : haversine(a, b);
+  const mi = m / 1609.34;
+  const dist = mi < 0.1 ? Math.round(m) + ' m' : mi.toFixed(mi < 1 ? 2 : 1) + ' mi';
+  const blocks = Math.round(m / 80);
+  const chip = (mode, r, label) => r === null ? ''
+    : `<span class="mode" title="${label}">${ICON[mode]}${r === undefined ? '…' : esc(fmtMin(r.min))}`
+      + (mode === 'sub' && r && r.lines && r.lines.length ? `<i>${r.lines.map(esc).join(' › ')}</i>` : '') + `</span>`;
+  return `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`
+    + `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
+    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`;
+}
+// The same, as one line of plain text, for the stop detail sheet.
+function legPlain(a, b) {
+  const walk = Route.get('walk', a, b), car = Route.get('car', a, b), sub = Route.get('sub', a, b);
+  if (!walk) return legText(haversine(a, b));
+  return [(walk.m / 1609.34).toFixed(walk.m < 1609 ? 2 : 1) + ' mi', 'walk ' + fmtMin(walk.min),
+    car ? 'car ' + fmtMin(car.min) : '', sub && !sub.none ? 'subway ' + fmtMin(sub.min) : ''].filter(Boolean).join(' · ');
 }
 
 function render() {
@@ -902,7 +1024,7 @@ function openDetail(id) {
   const walk = (o, label) => {
     if (!o) return '';
     const dtxt = (placed && hasLoc(o))
-      ? legText(haversine({ lat: e.lat, lng: e.lng }, { lat: o.lat, lng: o.lng }))
+      ? (label === 'BEFORE' ? legPlain(o, e) : legPlain(e, o))
       : 'distance unknown';
     return `<button class="nb" data-open="${o.id}"><span>${label}</span><div>
       <b>${esc(o.title)}</b>
