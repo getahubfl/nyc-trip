@@ -86,6 +86,10 @@ create table if not exists public.events (
   -- geocoder skips it so the pin does not come back on the next load.
   geo_status        text not null default 'idle',   -- idle|pending|ok|manual|failed|none|cleared
   geo_resolved      text default '',
+  -- How Apple Maps opens the stop: 'place' by its business name, 'spot' at
+  -- the pin. Required for new stops by the app.
+  map_kind          text check (map_kind in ('place','spot')),
+  place_name        text not null default '',
 
   -- bookkeeping
   created_at        timestamptz not null default now(),
@@ -94,6 +98,10 @@ create table if not exists public.events (
 );
 
 create index if not exists events_day_time_idx on public.events (day, time);
+
+-- Added after the first deploy; safe on a table created before it.
+alter table public.events add column if not exists map_kind text check (map_kind in ('place','spot'));
+alter table public.events add column if not exists place_name text not null default '';
 
 -- Keep updated_at honest, and record who touched it last.
 create or replace function public.touch_event()

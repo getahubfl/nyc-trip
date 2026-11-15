@@ -117,8 +117,8 @@ a{color:var(--link)}
 /* A chip is neutral; its dot carries the category colour. */
 .chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
   background:var(--fill);color:var(--ink-3);font-size:13.5px;font-weight:500;white-space:nowrap;transition:background .12s,color .12s}
-.chip .sw,.pick .sw{width:10px;height:10px;border-radius:50%;background:var(--c);flex:0 0 auto}
-.chip .sw{opacity:.35}
+.chip .sw,.pick .sw{width:10px;height:10px;border-radius:50%;background:var(--c);flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.chip .sw{opacity:.55}
 .chip[aria-pressed="true"]{background:var(--ink);color:#fff}
 .chip[aria-pressed="true"] .sw{opacity:1}
 .filteracts{display:flex;gap:16px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
@@ -158,13 +158,20 @@ a{color:var(--link)}
    colour with a Helvetica numeral. --c and --on come from the category. */
 .marker,.mk{border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
   background:var(--c,var(--ink-3));color:var(--on,#fff);font-family:var(--sign);font-weight:700;font-variant-numeric:tabular-nums}
-.marker{width:40px;height:40px;font-size:18px}
+.marker{width:40px;height:40px;font-size:18px;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.14)}
 /* No pin yet: an empty outline, so it reads as a gap in the line. */
-.marker.hollow{background:transparent;border:2px dashed #CFCFC9;color:var(--ink-3)}
+.marker.hollow{background:transparent;border:2px dashed #CFCFC9;color:var(--ink-3);box-shadow:none}
 .mk{width:30px;height:30px;font-size:14px;border:2.5px solid #fff;cursor:pointer;
-  box-shadow:0 2px 6px rgba(0,0,0,.32);transition:transform .14s}
+  box-shadow:0 0 0 1.5px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.25);transition:transform .14s}
 .mk:hover{transform:scale(1.08)}
 .mk.sel{transform:scale(1.25);z-index:2;box-shadow:0 0 0 3px var(--ink),0 3px 10px rgba(0,0,0,.4)}
+
+/* A clear break between the map and the first stop on a phone, where the
+   two are stacked. */
+@media (max-width:899px){
+  .map-col{border-bottom:1px solid var(--line)}
+  .map-col::after{content:"";display:block;height:10px;background:var(--fill);border-bottom:1px solid var(--line)}
+}
 
 /* ---------- list ---------- */
 .list{padding:18px 16px 120px}
@@ -397,3 +404,12 @@ a{color:var(--link)}
    black. It has no height wherever there is no inset, Safari included. */
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);
   background:var(--black);z-index:90}
+
+/* ---------- place suggestions ---------- */
+.suggest{margin-top:6px;border-radius:12px;background:var(--surface);overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,.14),0 0 0 1px var(--line)}
+.suggest[hidden]{display:none}
+.suggest button{display:block;width:100%;text-align:left;padding:11px 14px;border-bottom:1px solid var(--line)}
+.suggest button:last-child{border-bottom:0}
+.suggest b{display:block;font-weight:600;font-size:15px}
+.suggest span{display:block;font-size:13px;color:var(--ink-2);margin-top:1px}

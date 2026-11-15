@@ -26,27 +26,25 @@ const DAYS = [
   { id: '2026-11-25', dow: 'Wed', n: '25', label: 'Wednesday, November 25' },
   { id: '2026-11-26', dow: 'Thu', n: '26', label: 'Thursday, November 26 — Thanksgiving' },
   { id: '2026-11-27', dow: 'Fri', n: '27', label: 'Friday, November 27' },
-  { id: '2026-11-28', dow: 'Sat', n: '28', label: 'Saturday, November 28' },
-  { id: '2026-11-29', dow: 'Sun', n: '29', label: 'Sunday, November 29' },
-  { id: '2026-11-30', dow: 'Mon', n: '30', label: 'Monday, November 30 — departure' }
+  { id: '2026-11-28', dow: 'Sat', n: '28', label: 'Saturday, November 28 — departure' }
 ];
-/* Category colours are the subway lines' own, so a numbered stop reads as a
-   bullet off a subway sign. `on` is the numeral colour where white would be
-   too faint; the yellow lines carry black numerals on the real signs too. */
+/* Category colours are pastels, drawn as subway bullets: a disc with a dark
+   numeral. Measured so every pair stays distinct to normal vision; each pin
+   also carries its number and an outline, so colour is never the only cue. */
 const CATS = [
-  { id: 'breakfast', name: 'Breakfast',   color: '#FCCC0A', on: '#111111' },   // N Q R W
-  { id: 'lunch',     name: 'Lunch',       color: '#00933C' },                  // 4 5 6
-  { id: 'dinner',    name: 'Dinner',      color: '#EE352E' },                  // 1 2 3
-  { id: 'coffee',    name: 'Coffee',      color: '#996633' },                  // J Z
-  { id: 'snacks',    name: 'Snacks',      color: '#6CBE45', on: '#111111' },   // G
-  { id: 'sights',    name: 'Sightseeing', color: '#0039A6' },                  // A C E
-  { id: 'show',      name: 'Show',        color: '#B933AD' },                  // 7
-  { id: 'travel',    name: 'Travel',      color: '#00ADD0', on: '#111111' },   // T
-  { id: 'other',     name: 'Other',       color: '#808183' }                   // S
+  { id: 'breakfast', name: 'Breakfast',   color: '#F6D55C' },   // butter
+  { id: 'lunch',     name: 'Lunch',       color: '#7FD3A0' },   // mint
+  { id: 'dinner',    name: 'Dinner',      color: '#F48FB1' },   // pink
+  { id: 'coffee',    name: 'Coffee',      color: '#B98E6E' },   // mocha
+  { id: 'snacks',    name: 'Snacks',      color: '#FFC9A3' },   // peach
+  { id: 'sights',    name: 'Sightseeing', color: '#7FAEF0' },   // sky
+  { id: 'show',      name: 'Show',        color: '#D3B6FA' },   // lavender
+  { id: 'travel',    name: 'Travel',      color: '#5FCBD3' },   // aqua
+  { id: 'other',     name: 'Other',       color: '#E2E2DD' }    // stone
 ];
 const CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
 // The custom properties styles.css reads to colour a bullet or a dot.
-const catStyle = c => `--c:${c.color}` + (c.on ? `;--on:${c.on}` : '');
+const catStyle = c => `--c:${c.color};--on:#111111`;
 /* Status carries no colour of its own. Only "needs booking" is set apart, in
    the stylesheet, with the red kept for everything not yet booked. */
 const STATUSES = [
@@ -119,16 +117,28 @@ function hasLoc(e) { return Number.isFinite(e.lat) && Number.isFinite(e.lng); }
 
 /* Apple Maps links. On an iPhone these open the Maps app itself, from Safari
    and from the Home Screen app alike; anywhere else they open Maps on the web.
-   An address is handed over as a search, because the field also holds
-   neighbourhoods and place names. sll biases that search toward Midtown, so
+   Each stop is marked as a place or an exact spot (mapKind):
+   - a place opens by its business name (placeName), so Maps shows the real
+     place card and routes to it. sll biases the search toward the pin.
+   - an exact spot opens the pin itself: a parade corner, the start of a walk.
+   Without either, the address text is searched, biased toward Midtown so
    "205 E Houston St" finds the one in Manhattan wherever the phone is. */
-function mapsSearchUrl(address) {
-  return 'https://maps.apple.com/?q=' + encodeURIComponent(address) + '&sll=40.7580,-73.9855';
+const MIDTOWN = '40.7580,-73.9855';
+const near = e => hasLoc(e) ? e.lat + ',' + e.lng : MIDTOWN;
+function mapsUrl(e) {
+  if (e.mapKind === 'spot' && hasLoc(e)) return `https://maps.apple.com/?ll=${e.lat},${e.lng}&q=${encodeURIComponent(e.title || 'Stop')}`;
+  if (e.mapKind === 'place' && e.placeName) return `https://maps.apple.com/?q=${encodeURIComponent(e.placeName)}&sll=${near(e)}`;
+  if (e.address) return `https://maps.apple.com/?q=${encodeURIComponent(e.address)}&sll=${MIDTOWN}`;
+  return hasLoc(e) ? `https://maps.apple.com/?ll=${e.lat},${e.lng}&q=${encodeURIComponent(e.title || 'Stop')}` : '';
 }
-// Directions go to the pin, not the address text: hand-typed coordinates win.
 function mapsDirectionsUrl(e) {
+  if (e.mapKind === 'place' && e.placeName)
+    return 'https://maps.apple.com/?daddr=' + encodeURIComponent(e.placeName + (e.address ? ', ' + e.address : '')) + '&sll=' + near(e);
   return 'https://maps.apple.com/?daddr=' + e.lat + ',' + e.lng;
 }
+/* The background search may look up a stop by its name only when it is a
+   place with no address. An address is always looked up, to place its pin. */
+const canLookup = e => !!e.address || (e.mapKind === 'place' && !!(e.placeName || e.title));
 
 /* ---------- row mapping: database snake_case <-> app camelCase ---------- */
 function fromRow(r) {
@@ -154,6 +164,8 @@ function fromRow(r) {
     lng: r.lng == null ? null : Number(r.lng),
     geoStatus: r.geo_status || 'idle',
     geoResolved: r.geo_resolved || '',
+    mapKind: r.map_kind || '',
+    placeName: r.place_name || '',
     updatedBy: r.updated_by || ''
   };
 }
@@ -178,7 +190,10 @@ function toRow(e) {
     lat: Number.isFinite(e.lat) ? e.lat : null,
     lng: Number.isFinite(e.lng) ? e.lng : null,
     geo_status: e.geoStatus || 'idle',
-    geo_resolved: e.geoResolved || ''
+    geo_resolved: e.geoResolved || '',
+    // Only once the columns exist: PostgREST refuses unknown columns, and a
+    // refused write would roll back every save.
+    ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {})
   };
 }
 
@@ -204,11 +219,18 @@ const S = {
    ============================================================ */
 const Data = {
   channel: null,
+  // map_kind and place_name arrive with a one-off schema change. Until they
+  // exist the app neither writes them nor shows the place/spot switch.
+  hasMapCols: false,
 
   async load() {
     const { data, error } = await sb.from('events').select('*');
     if (error) { console.error('load', error); toast('Could not load the trip: ' + error.message); return; }
     S.events = data.map(fromRow);
+    try {
+      const probe = await sb.from('events').select('map_kind', { head: true });
+      this.hasMapCols = !probe.error;
+    } catch (err) { this.hasMapCols = false; }
   },
 
   // Every open browser subscribes; any insert/update/delete lands here within
@@ -289,7 +311,7 @@ const Geo = {
       const id = this.queue.shift();
       const ev = S.events.find(e => e.id === id);
       if (!ev) continue;
-      if (!ev.title && !ev.address) { await Data.update(id, { geoStatus: 'none' }); continue; }
+      if (!canLookup(ev)) { await Data.update(id, { geoStatus: 'none' }); continue; }
 
       const wait = 1100 - (Date.now() - this.last);
       if (wait > 0) await new Promise(r => setTimeout(r, wait));
@@ -307,17 +329,19 @@ const Geo = {
        "Surprise 1" or a generic restaurant name can land anywhere in the
        world. Name-plus-address is the second try because an over-specified
        query can miss entirely, and bare name is the last resort. */
-    const tries = [...new Set([
-      ev.address,
-      [ev.title, ev.address].filter(Boolean).join(', '),
-      ev.title
-    ].filter(Boolean))];
+    const name = ev.placeName || ev.title;
+    const byName = !ev.address;   // only reached for a place, by canLookup
+    const tries = [...new Set(ev.address
+      ? [ev.address, ev.mapKind === 'place' ? [name, ev.address].join(', ') : '']
+      : [name]).values()].filter(Boolean);
 
     for (const q of tries) {
       try {
         const url = 'https://nominatim.openstreetmap.org/search'
           + '?format=jsonv2&limit=1&addressdetails=1'
-          + '&viewbox=-74.0479,40.9176,-73.9067,40.6829&bounded=0'   // nudge toward NYC
+          // Manhattan only: every stop is there, and an unbounded "889 Broadway"
+          // lands in Brooklyn.
+          + '&viewbox=-74.0300,40.8800,-73.9000,40.6800&bounded=1'
           + '&q=' + encodeURIComponent(/new york|ny\b|nyc/i.test(q) ? q : q + ', New York, NY');
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if (!res.ok) {
@@ -327,9 +351,14 @@ const Geo = {
           const lat = hits.length ? Number(hits[0].lat) : NaN;
           const lng = hits.length ? Number(hits[0].lon) : NaN;
           if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            const a = hits[0].address || {};
+            const street = [a.house_number, a.road].filter(Boolean).join(' ');
             await Data.update(ev.id, {
               lat, lng, geoStatus: 'ok',
-              geoResolved: String(hits[0].display_name || '').slice(0, 160)
+              geoResolved: String(hits[0].display_name || '').slice(0, 160),
+              // A place found by name brings its address and name back with it.
+              ...(byName && street ? { address: street } : {}),
+              ...(byName && !ev.placeName && hits[0].name ? { placeName: hits[0].name } : {})
             });
             return;
           }
@@ -677,7 +706,7 @@ function renderList() {
       <div class="card">
         <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
-        ${e.address ? `<a class="where" href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : ''}
+        ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
@@ -900,7 +929,9 @@ function openDetail(id) {
          </div>`
       : `<div class="nocost">No cost recorded — add one when you know it</div>`}
     <dl class="d-rows">
-      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd><a href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a></dd></div>` : ''}
+      ${e.mapKind === 'place' && e.placeName ? `<div class="d-row"><dt>PLACE</dt><dd><a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.placeName)}</a></dd></div>` : ''}
+      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd>${mapsUrl(e) && !(e.mapKind === 'place' && e.placeName) ? `<a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : esc(e.address)}</dd></div>` : ''}
+      ${e.mapKind ? `<div class="d-row"><dt>MAPS OPENS</dt><dd>${e.mapKind === 'spot' ? 'The exact spot' : 'The place'}</dd></div>` : ''}
       <div class="d-row"><dt>LOCATION</dt><dd>${placed
         ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span class="muted small">matched: ${esc(e.geoResolved)}</span>` : ''}
            <br><a href="${mapsDirectionsUrl(e)}" target="_blank" rel="noopener">Directions</a>`
@@ -922,6 +953,52 @@ function openDetail(id) {
      <button class="btn danger" data-del="${e.id}">Delete</button>`);
 }
 
+/* ---------- place suggestions ----------
+   Photon (photon.komoot.io): free OpenStreetMap search built for
+   search-as-you-type, with no key. Nominatim forbids that use, so it stays
+   for the background lookup only. Guardrails: nothing under 3 characters, a
+   pause after typing before asking, one request in flight (a newer one
+   cancels it), Manhattan only, answers remembered, and a hard cap per page
+   load so a stuck field cannot run up requests. */
+const Suggest = {
+  cache: new Map(), sent: 0, MAX: 60, timer: null, ctl: null, last: [],
+  query(q, cb) {
+    clearTimeout(this.timer);
+    if (q.length < 3) { this.last = []; cb([]); return; }
+    this.timer = setTimeout(async () => {
+      const key = q.toLowerCase();
+      if (this.cache.has(key)) { this.last = this.cache.get(key); cb(this.last); return; }
+      if (this.sent >= this.MAX) return;
+      if (this.ctl) this.ctl.abort();
+      this.ctl = new AbortController();
+      this.sent++;
+      try {
+        const res = await fetch('https://photon.komoot.io/api/?limit=5&lang=en'
+          + '&bbox=-74.03,40.68,-73.90,40.88&lat=40.758&lon=-73.985&q=' + encodeURIComponent(q),
+          { signal: this.ctl.signal });
+        const json = await res.json();
+        const hits = (json.features || []).map(f => ({
+          name: f.properties.name || '',
+          address: [f.properties.housenumber, f.properties.street].filter(Boolean).join(' '),
+          lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0]
+        })).filter(h => h.name && Number.isFinite(h.lat) && Number.isFinite(h.lng));
+        this.cache.set(key, hits);
+        this.last = hits;
+        cb(hits);
+      } catch (err) {
+        if (err.name !== 'AbortError') console.warn('[suggest]', err);
+      }
+    }, 350);
+  }
+};
+function showSuggestions(hits) {
+  const box = $('#f-suggest');
+  if (!box) return;
+  box.hidden = !hits.length;
+  box.innerHTML = hits.map((h, i) =>
+    `<button type="button" data-sug="${i}"><b>${esc(h.name)}</b>${h.address ? `<span>${esc(h.address)}</span>` : ''}</button>`).join('');
+}
+
 /* ---------- form ---------- */
 let formState = null;
 
@@ -931,7 +1008,7 @@ function openForm(id) {
     id: null, day: S.toBookOnly ? DAYS[0].id : S.day, title: '', address: '', category: 'sights',
     time: '', durationMin: 60, people: 4, costPerPerson: 0, extras: [], link: '', notes: '',
     status: 'confirmed', needsReservation: false, booked: false, confirmation: '',
-    reservationTime: '', lat: null, lng: null, geoStatus: 'idle'
+    reservationTime: '', lat: null, lng: null, geoStatus: 'idle', mapKind: '', placeName: ''
   };
   sheetMode = 'form';
   openSheet(existing ? 'Edit stop' : 'New stop', formHTML(),
@@ -954,9 +1031,21 @@ function formHTML() {
   <div class="f"><label for="f-title">WHAT IS IT</label>
     <input id="f-title" type="text" value="${esc(f.title)}" placeholder="Katz's Delicatessen" autocomplete="off"></div>
 
+  <div class="f" id="f-kindrow" ${Data.hasMapCols ? '' : 'hidden'}><span class="legend">MAPS OPENS</span>
+    <div class="pickrow" id="f-kind">
+      <button type="button" class="pick" data-kind="place" aria-pressed="${f.mapKind === 'place'}">A place</button>
+      <button type="button" class="pick" data-kind="spot" aria-pressed="${f.mapKind === 'spot'}">An exact spot</button>
+    </div>
+    <div class="hint">A place opens its card in Apple Maps, by name. An exact spot opens the pin — a parade corner, the start of a walk.</div></div>
+
+  <div class="f" id="f-placerow" ${f.mapKind === 'place' ? '' : 'hidden'}><label for="f-place">BUSINESS NAME</label>
+    <input id="f-place" type="text" value="${esc(f.placeName)}" placeholder="Start typing — Quality Italian" autocomplete="off">
+    <div class="suggest" id="f-suggest" hidden></div>
+    <div class="hint">Pick a match to fill in the address and pin.</div></div>
+
   <div class="f"><label for="f-addr">ADDRESS OR NEIGHBOURHOOD</label>
     <input id="f-addr" type="text" value="${esc(f.address)}" placeholder="205 E Houston St" autocomplete="off">
-    <div class="hint">Optional. The name alone is usually enough — the map pin is looked up in the background after you save.</div></div>
+    <div class="hint">For a place with no address, it is looked up by name after you save.</div></div>
 
   <div class="f"><span class="legend">DAY</span>
     <div class="pickrow" id="f-days">${DAYS.map(d => `<button type="button" class="pick" data-day="${d.id}" aria-pressed="${f.day === d.id}">${d.dow} ${d.n}</button>`).join('')}</div></div>
@@ -1022,6 +1111,7 @@ function readForm() {
   const f = formState;
   f.title = $('#f-title').value.trim();
   f.address = $('#f-addr').value.trim();
+  f.placeName = f.mapKind === 'place' ? $('#f-place').value.trim() : '';
   f.time = $('#f-time').value;
   f.durationMin = Math.max(0, Number($('#f-dur').value) || 0);
   f.people = Math.max(0, Number($('#f-people').value) || 0);
@@ -1056,6 +1146,7 @@ function wireForm() {
   const body = $('#sheetBody');
   updateTotal();
   body.addEventListener('input', e => {
+    if (e.target.id === 'f-place') Suggest.query(e.target.value.trim(), showSuggestions);
     if (e.target.matches('#f-people,#f-cpp,[data-ex]')) updateTotal();
   });
   body.addEventListener('change', e => {
@@ -1069,6 +1160,26 @@ function wireForm() {
     if (dayBtn) {
       formState.day = dayBtn.dataset.day;
       [...$('#f-days').children].forEach(b => b.setAttribute('aria-pressed', b === dayBtn));
+      return;
+    }
+    const kindBtn = e.target.closest('[data-kind]');
+    if (kindBtn) {
+      formState.mapKind = kindBtn.dataset.kind;
+      [...$('#f-kind').children].forEach(b => b.setAttribute('aria-pressed', b === kindBtn));
+      $('#f-placerow').hidden = formState.mapKind !== 'place';
+      return;
+    }
+    const sug = e.target.closest('[data-sug]');
+    if (sug) {
+      const hit = Suggest.last[Number(sug.dataset.sug)];
+      if (hit) {
+        $('#f-place').value = hit.name;
+        if (hit.address) $('#f-addr').value = hit.address;
+        $('#f-lat').value = hit.lat.toFixed(6);
+        $('#f-lng').value = hit.lng.toFixed(6);
+        if (!$('#f-title').value.trim()) $('#f-title').value = hit.name;
+      }
+      $('#f-suggest').hidden = true;
       return;
     }
     const catBtn = e.target.closest('[data-cat]');
@@ -1115,6 +1226,7 @@ function wireForm() {
 async function saveForm() {
   const f = readForm();
   if (!f.title) { showErr('Give the stop a name.'); $('#f-title').focus(); return; }
+  if (Data.hasMapCols && !f.mapKind) { showErr('Choose whether Maps opens a place or an exact spot.'); return; }
   const isNew = !f.id;
   const prev = isNew ? null : S.events.find(x => x.id === f.id);
 
@@ -1127,7 +1239,8 @@ async function saveForm() {
     confirmation: f.confirmation, reservationTime: f.reservationTime,
     lat: prev ? prev.lat : null, lng: prev ? prev.lng : null,
     geoStatus: prev ? prev.geoStatus : 'idle',
-    geoResolved: prev ? prev.geoResolved : ''
+    geoResolved: prev ? prev.geoResolved : '',
+    mapKind: f.mapKind, placeName: f.placeName
   };
 
   // hand-typed coordinates always win over the lookup
@@ -1151,7 +1264,8 @@ async function saveForm() {
     ev.geoStatus = 'cleared'; ev.geoResolved = '';
   }
 
-  const placeChanged = !prev || prev.title !== ev.title || prev.address !== ev.address;
+  const placeChanged = !prev || prev.title !== ev.title || prev.address !== ev.address ||
+    prev.placeName !== ev.placeName || prev.mapKind !== ev.mapKind;
 
   /* Editing the title or address of a cleared stop releases the block.
      "Cleared" means "this pin was wrong, forget it" — but typing a new
@@ -1164,7 +1278,7 @@ async function saveForm() {
     (isNew || placeChanged || !Number.isFinite(ev.lat));
   if (needsLookup) {
     ev.lat = null; ev.lng = null;
-    ev.geoStatus = (ev.title || ev.address) ? 'pending' : 'none';
+    ev.geoStatus = canLookup(ev) ? 'pending' : 'none';
   }
 
   // Jump to the saved stop's day — unless the whole-trip view is open, which
@@ -1178,7 +1292,7 @@ async function saveForm() {
 
   closeSheet();
   render();
-  if (needsLookup && (ev.title || ev.address)) {
+  if (needsLookup && canLookup(ev)) {
     Geo.enqueue(saved.id);
     toast(isNew ? 'Added. Finding it on the map…' : 'Saved. Re-checking the map pin…');
   } else {
@@ -1267,7 +1381,7 @@ document.addEventListener('click', async e => {
       /* Deliberately includes 'pending' and 'cleared'. This is an explicit
          "go find the missing pins" request, so a stop stranded mid-lookup is
          exactly what the user means, and a cleared one is theirs to undo. */
-      const miss = S.events.filter(x => !hasLoc(x) && (x.title || x.address) && x.geoStatus !== 'manual');
+      const miss = S.events.filter(x => !hasLoc(x) && canLookup(x) && x.geoStatus !== 'manual');
       if (!miss.length) toast('Every stop with a name is already placed.');
       else { miss.forEach(x => Geo.enqueue(x.id)); toast('Looking up ' + miss.length + ' stop' + (miss.length === 1 ? '' : 's') + '…'); }
     }
@@ -1625,7 +1739,7 @@ async function boot() {
 
        'manual' and 'cleared' stay excluded: both mean the user decided where
        this stop is, or that it has no location. */
-    .filter(e => !hasLoc(e) && (e.title || e.address) &&
+    .filter(e => !hasLoc(e) && canLookup(e) &&
       e.geoStatus !== 'manual' && e.geoStatus !== 'cleared')
     .forEach(e => Geo.enqueue(e.id));
 

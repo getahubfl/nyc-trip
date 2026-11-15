@@ -15,11 +15,10 @@ landing page. It needs to be correct, fast on a phone, and pleasant to open.
 
 ## Trip facts
 
-- **Dates:** Wed 25 Nov – Mon 30 Nov 2026
+- **Dates:** Wed 25 Nov – Sat 28 Nov 2026, flying home from JFK on Saturday
 - **Arrival:** JFK, then a Blade helicopter into Manhattan (not car or train)
 - **Hotel 1:** Hilton Garden Inn Central Park South, 237 W 54th St — Wed to Sat,
   check-in 15:00 Wed, checkout 12:00 Sat
-- **Hotel 2:** Sat to Mon, Manhattan, **not yet booked**
 - **Travellers:** Paris and Megan, with Mom & Dad joining for parts
 - Megan is gluten-free; the trip is not built around gluten-free dining
 - It is Paris' first time in New York, so the goal is classic New York
@@ -34,7 +33,7 @@ rather than being silently "fixed":
 
 Still open with the family: which Turkey Trot, Thanksgiving lunch, Friday
 pre-theater dinner, both "Surprise" activities, comedy club after *Chicago*,
-Hotel 2, and all of Sunday and Monday.
+and the placeholder stops with no location yet.
 
 ## Architecture, and why
 
@@ -139,9 +138,20 @@ sheet/detail/form → global event handling → auth gate → boot.
 - **Never let the Supabase client see an error link.** `supabase-js` deletes
   the saved session when the URL carries `error_description`, which is how an
   expired email link arrives. `app.js` strips it before `createClient` runs.
-- **Addresses open Apple Maps.** Both travellers carry iPhones.
-  `mapsSearchUrl` hands over the address text as a search; `mapsDirectionsUrl`
-  goes to the pin. The list row is a `div.stop` whose title is the button,
+- **Every stop is a place or an exact spot** (`map_kind`, required for new
+  stops once the column exists; `Data.hasMapCols` detects it). A place opens
+  Apple Maps by its business name (`place_name`), so Maps shows the real place
+  card; an exact spot (parade corner, start of a walk) opens the pin.
+  `mapsUrl` / `mapsDirectionsUrl` in `app.js`.
+- **Place suggestions come from Photon**, as you type the business name.
+  Nominatim's policy forbids search-as-you-type. Guardrails in `Suggest`:
+  3+ characters, a pause, one request in flight, Manhattan only, cached, and
+  a cap per page load.
+- **The background lookup is narrow.** An address is always looked up for
+  its pin; a stop is searched by name only when it is a place with no
+  address (`canLookup`). Lookups are bounded to Manhattan: unbounded,
+  "889 Broadway" lands in Brooklyn.
+- **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
 ## Design direction
@@ -153,9 +163,10 @@ The New York accents are three, and only three — don't add more:
 
 - **The sign.** The masthead and day rail are subway-sign black, with the
   white rule across the top.
-- **Bullets.** Stop numbers are subway bullets: a disc in the category's line
-  colour with a Helvetica numeral (`CATS` in `app.js`; `--c`/`--on` via
-  `catStyle`). The walk between stops is drawn as a line joining them.
+- **Bullets.** Stop numbers are subway bullets: a pastel disc with a dark
+  Helvetica numeral and a fine dark ring (`CATS` in `app.js`; `--c`/`--on`
+  via `catStyle`). Pastel is Megan's call; the set was measured so every pair
+  stays distinct. The walk between stops is drawn as a line joining them.
 - **Taxi yellow** for the one primary action (+ New stop) and the selected day.
 
 Red means "not booked" or failed, and green means booked; nothing else uses
@@ -191,7 +202,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, and the desktop layout. 85 assertions, all
+coordinates, the Apple Maps links, place suggestions, and the desktop layout. 95 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
@@ -204,7 +215,6 @@ its saved sign-in, and Apple Maps opening. Those need a phone.
 
 ## Open product questions
 
-- Sunday and Monday are empty. Once plans firm up they're just more rows.
 - ~~Nothing surfaces a trip-wide budget total. Per-event cost only, by
   decision.~~ **Closed.** A Budget view now rolls costs up trip-wide: overview
   (total, committed vs still-to-book), by day, by category, and every priced
