@@ -61,7 +61,8 @@ export function createClient(){
       // The trip password is "paris". The app pads what is typed before
       // sending it, because Supabase refuses passwords under 6 characters.
       signInWithPassword: async ({ email, password }) => {
-        if (password !== 'paris-nyc-trip') return { error: { message: 'Invalid login credentials' } };
+        // "paris123" is stored as typed; shorter "paris" is stored padded.
+        if (password !== 'paris-nyc-trip' && password !== 'paris123') return { error: { message: 'Invalid login credentials' } };
         sessionStorage.setItem('stubSession', JSON.stringify({ email, via: 'password' }));
         return { data: {}, error: null };
       },
@@ -250,6 +251,15 @@ window.maplibregl = {
   ok('trip password signs in', await t.locator('#app:not([hidden])').count() === 1);
   ok('signed in to the trip account', (await t.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')))).email === 'trip@example.com');
   await t.close();
+  const t8 = await ctx.newPage();
+  await t8.addInitScript(() => { window.__signedIn = false; });
+  await t8.goto('http://local/index.html');
+  await t8.waitForTimeout(600);
+  await t8.fill('#gatePass', 'paris123');
+  await t8.locator('#gateSignIn').click();
+  await t8.waitForTimeout(900);
+  ok('a longer password is sent as typed', await t8.locator('#app:not([hidden])').count() === 1);
+  await t8.close();
   fs.writeFileSync(ROOT + '/config.js', CONF + '};');
 
   console.log('\n— SIGN IN BY PASTED LINK —');
