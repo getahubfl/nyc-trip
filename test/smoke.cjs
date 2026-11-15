@@ -126,12 +126,14 @@ window.maplibregl = {
   await p.locator('#gateSend').click();
   await p.waitForTimeout(300);
   ok('rate limit explained in plain words', (await p.locator('#gateMsg').innerText()).includes('few sign-in emails an hour'));
+  ok('a failure is marked as one', await p.locator('#gateMsg.bad').count() === 1);
   ok('stays on the email step when nothing was sent', await p.locator('#gateCodeForm[hidden]').count() === 1);
 
   await p.fill('#gateEmail', 'you@example.com');
   await p.locator('#gateSend').click();
   await p.waitForTimeout(300);
   ok('code confirmation shown', (await p.locator('#gateMsg').innerText()).includes('Check you@example.com'));
+  ok('a confirmation is not marked as a failure', await p.locator('#gateMsg.bad').count() === 0);
   ok('moves to the code step', await p.locator('#gateCodeForm:not([hidden])').count() === 1 && await p.locator('#gateForm[hidden]').count() === 1);
 
   // Leaving for the mail app can cost the page its state. It must come back
@@ -144,6 +146,19 @@ window.maplibregl = {
   await p.locator('#gateVerify').click();
   await p.waitForTimeout(300);
   ok('wrong code refused with a reason', (await p.locator('#gateMsg').innerText()).includes('did not work') && await p.locator('#gate:not([hidden])').count() === 1);
+  // A refusal has to be impossible to miss: marked, and beside the field
+  // rather than at the foot of the card, where the keyboard covers it.
+  const seen = await p.evaluate(() => {
+    const m = document.querySelector('#gateMsg'), f = document.querySelector('#gateCode');
+    return { bad: m.classList.contains('bad'), above: m.getBoundingClientRect().bottom <= f.getBoundingClientRect().top,
+             colour: getComputedStyle(m).color };
+  });
+  ok('the refusal is marked and sits above the field', seen.bad && seen.above && seen.colour === 'rgb(169, 59, 46)', JSON.stringify(seen));
+
+  await p.fill('#gateCode', 'https://x.supabase.co/auth/v1/verify?token=spent&type=magiclink');
+  await p.locator('#gateVerify').click();
+  await p.waitForTimeout(300);
+  ok('a spent link says why', (await p.locator('#gateMsg').innerText()).includes('already used or has expired'));
 
   await p.fill('#gateCode', '123456');
   await p.locator('#gateVerify').click();
