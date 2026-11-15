@@ -46,6 +46,8 @@ Everything here is on a free tier with no credit card anywhere.
 | Data + live sync | Supabase (Postgres + Realtime) | Realtime pushes row changes over a websocket, which is the "both phones update" requirement. |
 | Auth | Supabase password, one trip account | Family type one password, no email. Restricted to an allow-list in `trip_members`. An emailed code is the fallback — see Conventions. |
 | Geocoding | Nominatim (OpenStreetMap) | Free, no key. Rate limited to one request per second by policy. |
+| Walking + car routes | OSRM on routing.openstreetmap.de | Free, no key, follows real streets. Volunteer-run: keep requests few. |
+| Subway routes | Transitous (api.transitous.org) | Free public-transit planner with the MTA timetable, no key. |
 | Keepalive | GitHub Actions cron | Free Supabase projects pause after 7 days idle; a paused project cold-starts in 10–30s. |
 
 **The host and the database are not connected.** The browser loads static files
@@ -153,6 +155,15 @@ sheet/detail/form → global event handling → auth gate → boot.
   "889 Broadway" lands in Brooklyn. A lookup runs once per save; a failed
   one is not retried on page load (that looped forever on addresses
   OpenStreetMap does not know), only on edit or "Re-locate missing pins".
+- **Every leg shows walking, car and subway on the card** (`Route`,
+  `legHTML`). Distance and blocks come from the walking route; until it
+  arrives, or if it fails, from the straight line. The car time is the route
+  length at Manhattan traffic speed (`CAR_MPH`, 8 mph) plus 2 minutes, never
+  faster than OSRM's empty-street time — OSRM alone said 4 minutes from
+  Midtown to the Upper West Side. Subway is the fastest Transitous trip that
+  uses a subway line, for the time the earlier stop ends. One request at a
+  time, only for legs on screen, cached in localStorage for days; a failure
+  is not retried until the app is reopened.
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -204,7 +215,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, and the desktop layout. 95 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, and the desktop layout. 100 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
