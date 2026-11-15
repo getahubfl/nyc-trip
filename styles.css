@@ -93,9 +93,9 @@ a{color:var(--link)}
 .filterbtn,.tobook,.budget{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
   background:var(--fill);color:var(--ink);font-size:13.5px;font-weight:600}
 .filterbtn b,.budget b{font-weight:700;font-variant-numeric:tabular-nums}
-/* Filter is collapsed by default: nine category chips permanently eating a
+/* Filter is collapsed by default: eleven category chips permanently eating a
    toolbar row is a lot of furniture on a phone for something used rarely.
-   The button turns yellow and shows "3/9" when narrowed, so a filtered view
+   The button turns yellow and shows "3/11" when narrowed, so a filtered view
    is never silent. */
 .filterbtn.narrowed{background:var(--yellow)}
 .filterbtn[aria-expanded="true"]{background:var(--ink);color:#fff}

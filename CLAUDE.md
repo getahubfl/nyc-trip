@@ -150,7 +150,9 @@ sheet/detail/form → global event handling → auth gate → boot.
 - **The background lookup is narrow.** An address is always looked up for
   its pin; a stop is searched by name only when it is a place with no
   address (`canLookup`). Lookups are bounded to Manhattan: unbounded,
-  "889 Broadway" lands in Brooklyn.
+  "889 Broadway" lands in Brooklyn. A lookup runs once per save; a failed
+  one is not retried on page load (that looped forever on addresses
+  OpenStreetMap does not know), only on edit or "Re-locate missing pins".
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
