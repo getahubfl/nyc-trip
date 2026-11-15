@@ -121,11 +121,10 @@ sheet/detail/form → global event handling → auth gate → boot.
   for an email too. The account's email is therefore public in the deployed
   config — keep it out of the repo itself. Safari and the Home Screen app
   keep separate sign-ins; each asks once and then stays signed in.
-- **Passwords are padded.** Supabase refuses passwords under 6 characters and
-  the family password is shorter, so `pw()` appends `PW_PAD` before every
-  sign-in and every `updateUser`. It adds no secrecy. Set the password only
-  from ⋯ → Trip password; one set in the Supabase dashboard must include the
-  suffix or nobody can sign in.
+- **Short passwords are padded.** Supabase refuses passwords under 6
+  characters, so `pw()` appends `PW_PAD` to a shorter one before sign-in and
+  `updateUser`; longer ones go as typed. Sign-in also tries the padded form
+  (`pwTries`), because one build padded every password. It adds no secrecy.
 - **The emailed code is the fallback, and it is typed, not followed.** It is
   the way in before a password exists and after one is forgotten, and a code
   sign-in opens the Trip password sheet. A link signs in whichever browser

@@ -1366,13 +1366,16 @@ const OFFER_PASSWORD_KEY = 'nyc-trip-offer-password';
    gate asks only for the password and signs in to that account, so family
    can be given a single word. The email ships in the public config.
 
-   Supabase refuses passwords under 6 characters, so what is typed is padded
+   Supabase refuses passwords under 6 characters, so a shorter one is padded
    with this fixed suffix before it is sent, both when signing in and when
-   the password is set. It adds no secrecy: it is in this public file. Setting
-   the password anywhere but the app's Trip password sheet must add it too. */
+   the password is set. It adds no secrecy: it is in this public file.
+   Longer passwords go as typed. Sign-in still tries the padded form after
+   the plain one, because the app briefly padded every password. */
 const TRIP_LOGIN = String(CFG.tripLogin || '').trim();
 const PW_PAD = '-nyc-trip';
-const pw = typed => typed + PW_PAD;
+const PW_MIN = 6;
+const pw = typed => typed.length < PW_MIN ? typed + PW_PAD : typed;
+const pwTries = typed => typed.length < PW_MIN ? [typed + PW_PAD] : [typed, typed + PW_PAD];
 
 let gateEmail = '';
 function gateStep(step) {
@@ -1394,7 +1397,10 @@ async function signIn(email, password) {
   // strand the button on "Signing in…" with nothing said.
   let error;
   try {
-    ({ error } = await sb.auth.signInWithPassword({ email, password: pw(password) }));
+    for (const tryPw of pwTries(password)) {
+      ({ error } = await sb.auth.signInWithPassword({ email, password: tryPw }));
+      if (!error || !/invalid login/i.test(error.message)) break;
+    }
   } catch (err) { error = err; }
   if (error) {
     btn.disabled = false;
