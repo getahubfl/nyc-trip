@@ -1,22 +1,35 @@
-:root{
-  --paper:#EFE6D3;
-  --paper-2:#E5D9C2;
-  --paper-3:#DCCDB1;
-  --ink:#152E2B;
-  --ink-soft:#40554F;
-  --petrol:#1B4F4B;
-  --petrol-deep:#123634;
-  --mustard:#E0A526;
-  --orange:#D4622A;
-  --olive:#78894A;
-  --brick:#A93B2E;
-  --teal:#2E7D77;
-  --slate:#4A6B8A;
-  --stone:#8A7B68;
-  --rose:#C2796F;
+/* ============================================================
+   New York trip — styles
 
-  --display:'Jost',system-ui,sans-serif;
-  --body:'Karla',system-ui,sans-serif;
+   A modern app with New York in the details. The canvas is neutral: white
+   surfaces, near-black ink, the phone's own system type. Colour is rationed
+   to where it means something. The New York accents are three, and only
+   three:
+     - the black sign band at the top, after the subway signage
+     - the stop numbers, drawn as subway bullets in the lines' own colours
+     - taxi yellow, for the one primary action and the selected day
+   ============================================================ */
+:root{
+  --bg:#F3F3F0;          /* behind the app on a wide screen */
+  --surface:#FFFFFF;
+  --fill:#F1F1EE;        /* quiet fills: inputs, pills, notes */
+  --line:#E3E3DE;        /* hairlines */
+  --ink:#111111;
+  --ink-2:#5C5C57;       /* secondary text */
+  --ink-3:#74746E;       /* tertiary text; still 4.5:1 on white */
+  --black:#0B0B0B;       /* the sign */
+  --on-black-2:rgba(255,255,255,.64);
+  --yellow:#FCCC0A;      /* taxi; also the N Q R W */
+  --red:#C4281C;         /* not booked, and anything that failed */
+  --red-tint:#FDECEA;
+  --green:#0B7A3B;       /* booked */
+  --green-tint:#E7F4EC;
+  --link:#0A62C9;
+
+  --r:14px;              /* cards, inputs, buttons */
+  --font:-apple-system,BlinkMacSystemFont,system-ui,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  /* The bullets keep Helvetica, as the signs do. */
+  --sign:"Helvetica Neue",Helvetica,Arial,sans-serif;
 
   --shell-max:1180px;
   box-sizing:border-box;
@@ -24,396 +37,363 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
   color-scheme:light;
 }
-:root:not([data-theme="light"]){ }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --paper:#E7DDC8;
-    --paper-2:#DCD0B7;
-    --paper-3:#D0C1A4;
-  }
-}
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
 body{
   margin:0;
-  background:var(--petrol-deep);
+  background:var(--bg);
   color:var(--ink);
-  font-family:var(--body);
-  font-size:15px;
-  line-height:1.45;
+  font-family:var(--font);
+  font-size:15.5px;
+  line-height:1.4;
   -webkit-font-smoothing:antialiased;
 }
 button,input,select,textarea{font:inherit;color:inherit}
-button{cursor:pointer;border:0;background:none}
-:focus-visible{outline:3px solid var(--mustard);outline-offset:2px}
+button{cursor:pointer;border:0;background:none;-webkit-tap-highlight-color:transparent}
+a{color:var(--link)}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
 
-/* ---------- shell ---------- */
-.shell{max-width:var(--shell-max);margin:0 auto;background:var(--paper);min-height:100dvh;position:relative;overflow:hidden}
+.muted{color:var(--ink-2)}
+.small{font-size:12.5px}
+.bad{color:var(--red)}
 
-/* ---------- masthead ---------- */
-.masthead{background:var(--petrol);color:var(--paper);padding:18px 20px 16px;position:relative}
-.masthead::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;
-  background:linear-gradient(90deg,var(--mustard) 0 25%,var(--orange) 25% 50%,var(--brick) 50% 75%,var(--teal) 75% 100%)}
+/* ---------- shell ---------- */
+.shell{max-width:var(--shell-max);margin:0 auto;background:var(--surface);min-height:100dvh;position:relative;overflow:hidden}
+
+/* ---------- masthead: the sign ---------- */
+.masthead{background:var(--black);color:#fff;padding:22px 18px 8px;position:relative}
+/* The white rule along the top of a subway sign. */
+.masthead::before{content:"";position:absolute;left:18px;right:18px;top:9px;height:2px;background:#fff}
 .mast-row{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
-.mast-title{font-family:var(--display);font-weight:500;font-size:34px;line-height:.92;letter-spacing:-.015em;margin:0}
-.mast-title span{display:block;font-size:13px;font-weight:400;letter-spacing:.26em;opacity:.7;margin-bottom:6px}
-.mast-meta{font-family:var(--display);font-size:13px;text-align:right;opacity:.85;line-height:1.35;flex:0 0 auto}
-.mast-meta b{display:block;font-weight:500;font-size:19px;letter-spacing:.01em}
+.mast-title{font-weight:800;font-size:32px;line-height:.98;letter-spacing:-.035em;margin:0}
+.mast-title span{display:block;font-size:11.5px;font-weight:600;letter-spacing:.14em;color:var(--on-black-2);margin-bottom:7px}
+.mast-meta{font-size:12.5px;text-align:right;color:var(--on-black-2);line-height:1.35;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.mast-meta b{display:block;font-weight:600;font-size:15px;color:#fff}
 
 /* ---------- day rail ---------- */
-.rail{display:flex;gap:0;overflow-x:auto;background:var(--petrol);scrollbar-width:none;-ms-overflow-style:none;padding:0 12px 12px}
+.rail{display:flex;gap:2px;overflow-x:auto;background:var(--black);scrollbar-width:none;-ms-overflow-style:none;padding:8px 12px 12px}
 .rail::-webkit-scrollbar{display:none}
-.day{flex:0 0 auto;padding:8px 13px 7px;border-radius:999px;color:var(--paper);opacity:.55;
-  font-family:var(--display);font-size:12px;letter-spacing:.08em;white-space:nowrap;text-align:center;
-  display:flex;flex-direction:column;align-items:center;gap:0;transition:opacity .15s,background .15s}
-.day b{font-size:21px;font-weight:500;letter-spacing:0;line-height:1.02}
-.day i{font-style:normal;font-size:10.5px;letter-spacing:.1em;opacity:.75;display:flex;align-items:center;gap:4px;line-height:1.3}
-.day[aria-selected="true"]{background:var(--paper);color:var(--petrol-deep);opacity:1}
-.day .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--mustard);margin-left:5px;vertical-align:middle}
-/* Whole-trip tab. Mustard rule marks it as a different kind of thing from the
-   six dates without breaking the rail's rhythm. */
-.day-all{border-right:1px solid rgba(239,230,211,.25);margin-right:6px;padding-right:15px}
-.day-all b{letter-spacing:-.01em}
-.day-all[aria-selected="true"]{background:var(--mustard);color:var(--petrol-deep)}
+.day{flex:0 0 auto;min-width:50px;padding:7px 10px 6px;border-radius:var(--r);color:var(--on-black-2);
+  white-space:nowrap;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0;
+  transition:background .15s,color .15s}
+.day span{font-size:11.5px;font-weight:600}
+.day b{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.day i{font-style:normal;font-size:10.5px;font-weight:600;display:flex;align-items:center;gap:4px;line-height:1.3;opacity:.85}
+.day[aria-selected="true"]{background:var(--yellow);color:var(--ink)}
+/* Something on this day still needs booking. */
+.day .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--yellow)}
+.day[aria-selected="true"] .dot{background:var(--ink)}
+/* Whole-trip tab. A hairline sets it apart from the six dates. */
+.day-all{margin-right:7px;position:relative}
+.day-all::after{content:"";position:absolute;right:-5px;top:9px;bottom:9px;width:1px;background:rgba(255,255,255,.22)}
 
 /* ---------- toolbar ---------- */
-.toolbar{background:var(--paper-2);border-bottom:1px solid var(--paper-3);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1 1 200px;padding:1px;
-  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
-  mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
-.chips::-webkit-scrollbar{display:none}
+.toolbar{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filterbtn,.tobook,.budget{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
+  background:var(--fill);color:var(--ink);font-size:13.5px;font-weight:600}
+.filterbtn b,.budget b{font-weight:700;font-variant-numeric:tabular-nums}
 /* Filter is collapsed by default: nine category chips permanently eating a
    toolbar row is a lot of furniture on a phone for something used rarely.
-   The button shows "3/9" when narrowed so a filtered view is never silent. */
-.filterbtn{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
-  border:1.5px solid var(--ink);color:var(--ink);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
-.filterbtn b{font-weight:600}
-.filterbtn.narrowed{border-color:var(--orange);color:var(--orange)}
-.filterbtn[aria-expanded="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.filterbtn[aria-expanded="true"].narrowed{background:var(--orange);border-color:var(--orange);color:var(--paper)}
+   The button turns yellow and shows "3/9" when narrowed, so a filtered view
+   is never silent. */
+.filterbtn.narrowed{background:var(--yellow)}
+.filterbtn[aria-expanded="true"]{background:var(--ink);color:#fff}
 .fbars{width:13px;height:11px;flex:0 0 auto;
   background:linear-gradient(currentColor,currentColor) 0 0/100% 1.8px no-repeat,
              linear-gradient(currentColor,currentColor) 0 50%/70% 1.8px no-repeat,
              linear-gradient(currentColor,currentColor) 0 100%/40% 1.8px no-repeat}
+/* Red is reserved for "not booked", so this is the only red in the toolbar. */
+.tobook{background:var(--red-tint);color:var(--red)}
+.tobook b{background:var(--red);color:#fff;border-radius:999px;min-width:19px;height:19px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;padding:0 5px}
+.tobook[aria-pressed="true"]{background:var(--red);color:#fff}
+.tobook[aria-pressed="true"] b{background:#fff;color:var(--red)}
+.tobook[hidden],.budget[hidden]{display:none}
 
-.filterpanel{background:var(--paper-2);border-bottom:1px solid var(--paper-3);padding:12px 14px 14px}
+.filterpanel{background:var(--surface);border-bottom:1px solid var(--line);padding:12px 14px 14px}
 .filterpanel[hidden]{display:none}
-/* Inside the panel the chips wrap instead of scrolling — the whole point is
-   seeing every category at once. */
-.filterpanel .chips{flex-wrap:wrap;overflow:visible;-webkit-mask-image:none;mask-image:none;gap:7px}
-.filteracts{display:flex;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--paper-3)}
-.filteracts button{font-family:var(--display);font-size:11.5px;letter-spacing:.12em;color:var(--ink-soft);
-  border-bottom:1.5px solid currentColor;padding:0 0 1px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+/* A chip is neutral; its dot carries the category colour. */
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
+  background:var(--fill);color:var(--ink-3);font-size:13.5px;font-weight:500;white-space:nowrap;transition:background .12s,color .12s}
+.chip .sw,.pick .sw{width:10px;height:10px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.chip .sw{opacity:.35}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+.chip[aria-pressed="true"] .sw{opacity:1}
+.filteracts{display:flex;gap:16px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+.filteracts button{font-size:13.5px;font-weight:600;color:var(--link);padding:2px 0}
 
-.chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
-  border:1.5px solid var(--ink);background:transparent;font-size:12.5px;font-weight:500;letter-spacing:.02em;white-space:nowrap;transition:background .12s,color .12s}
-.chip .sw{width:9px;height:9px;border-radius:50%;background:currentColor;flex:0 0 auto}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-.tobook{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
-  border:1.5px solid var(--brick);color:var(--brick);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
-.tobook b{background:var(--brick);color:var(--paper);border-radius:999px;min-width:19px;height:19px;
-  display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;padding:0 5px}
-.tobook[aria-pressed="true"]{background:var(--brick);color:var(--paper)}
-.tobook[aria-pressed="true"] b{background:var(--paper);color:var(--brick)}
-
-/* Budget lives next to To book. Petrol rather than brick: brick is reserved
-   for "not booked", and the trip total is structural information, not an
-   alarm. The number sits in the button so the headline figure is readable
-   without opening anything. */
-.budget{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
-  border:1.5px solid var(--petrol);color:var(--petrol);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.03em}
-.budget[hidden]{display:none}
-.budget b{font-weight:600;letter-spacing:.01em}
-
-/* Touch targets. The filter chips, the to-book toggle and the sheet close
-   button all land around 28-32px, which is fiddly one-handed while walking —
-   which is the whole use case. Apple's guideline is ~44px. Scoped to coarse
-   pointers so the desktop layout keeps its tighter proportions. */
+/* Touch targets. Chips, toolbar pills and the sheet close button would land
+   around 30px, which is fiddly one-handed while walking — which is the whole
+   use case. Scoped to coarse pointers so the desktop layout stays tighter. */
 @media (pointer:coarse){
-  .chip,.tobook,.budget{min-height:40px}
-  .sheet-head button{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .chip,.filterbtn,.tobook,.budget{min-height:40px}
+  .sheet-head button{min-width:44px;min-height:44px}
 }
-.tobook[hidden]{display:none}
 
 /* ---------- layout ---------- */
 .body-grid{display:block}
 @media (min-width:900px){
-  /* The list column was a fixed 420px, so narrowing the window ate the map's
-     width first — at 900px the map became a tall, thin strip. Clamping it to a
-     share of the viewport keeps the two columns proportionate as the window
-     resizes, which is the point of the split view. */
+  /* The list column is clamped to a share of the viewport so the two columns
+     stay proportionate as the window resizes. */
   .body-grid{display:grid;grid-template-columns:1fr clamp(300px,32vw,420px);align-items:start}
   .chrome{position:sticky;top:0;z-index:20}
   .map-col{position:sticky;top:var(--chrome,0px)}
-  .list-col{border-left:1px solid var(--paper-3);min-height:60vh}
+  .list-col{border-left:1px solid var(--line);min-height:60vh}
 }
 
 /* ---------- map ---------- */
-.map-wrap{position:relative;background:var(--petrol-deep);aspect-ratio:1/.92;overflow:hidden;touch-action:none}
+.map-wrap{position:relative;background:#E9E9E5;aspect-ratio:1/.92;overflow:hidden;touch-action:none}
 @media (min-width:900px){.map-wrap{aspect-ratio:auto;height:calc(100dvh - var(--chrome,0px))}}
-.map-wrap svg{display:block;width:100%;height:100%;cursor:grab}
-.map-wrap svg.drag{cursor:grabbing}
+#map{position:absolute;inset:0}
 .map-empty[hidden]{display:none}
 .map-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;
-  color:var(--paper);opacity:.6;font-family:var(--display);font-size:14px;letter-spacing:.06em;padding:30px;pointer-events:none}
-.map-tools{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
-.map-tools button{width:34px;height:34px;border-radius:4px;background:var(--paper);color:var(--petrol-deep);
-  font-family:var(--display);font-size:17px;font-weight:500;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 1px 0 rgba(0,0,0,.35)}
-.map-tools button.fit{font-size:11px;letter-spacing:.04em}
-.scalebar{position:absolute;left:12px;bottom:12px;color:var(--paper);font-family:var(--display);font-size:11px;letter-spacing:.08em;opacity:.8}
-.scalebar .bar{height:3px;background:var(--paper);margin-bottom:3px}
-.pin{cursor:pointer}
-.pin-num{font-family:var(--display);font-weight:600;font-size:15px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
-.pin-label{font-family:var(--display);font-size:11.5px;letter-spacing:.03em;fill:var(--paper);pointer-events:none;paint-order:stroke;
-  stroke:rgba(18,54,52,.85);stroke-width:3px;stroke-linejoin:round}
+  color:var(--ink-2);font-size:14px;font-weight:500;padding:30px;pointer-events:none}
+.maplibregl-ctrl-attrib{font-family:var(--font);font-size:10.5px}
+.maplibregl-ctrl-group{border-radius:10px !important;box-shadow:0 1px 4px rgba(0,0,0,.18) !important;overflow:hidden}
+
+/* ---------- the bullet ---------- */
+/* Stop numbers are subway bullets: a solid disc in the category's line
+   colour with a Helvetica numeral. --c and --on come from the category. */
+.marker,.mk{border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  background:var(--c,var(--ink-3));color:var(--on,#fff);font-family:var(--sign);font-weight:700;font-variant-numeric:tabular-nums}
+.marker{width:40px;height:40px;font-size:18px}
+/* No pin yet: an empty outline, so it reads as a gap in the line. */
+.marker.hollow{background:transparent;border:2px dashed #CFCFC9;color:var(--ink-3)}
+.mk{width:30px;height:30px;font-size:14px;border:2.5px solid #fff;cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,.32);transition:transform .14s}
+.mk:hover{transform:scale(1.08)}
+.mk.sel{transform:scale(1.25);z-index:2;box-shadow:0 0 0 3px var(--ink),0 3px 10px rgba(0,0,0,.4)}
 
 /* ---------- list ---------- */
-.list{padding:14px 14px 120px}
-.daytitle{font-family:var(--display);font-size:12px;letter-spacing:.24em;color:var(--ink-soft);margin:2px 0 12px}
+.list{padding:18px 16px 120px}
+.daytitle{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:0 0 16px}
 /* Day separator inside the whole-trip list. */
-.daybreak{display:flex;align-items:center;gap:10px;margin:22px 0 13px;
-  font-family:var(--display);font-size:11.5px;letter-spacing:.18em;color:var(--ink)}
-.daybreak::after{content:"";flex:1 1 auto;height:1.5px;background:var(--ink);opacity:.22}
-.daybreak i{font-style:normal;font-size:11px;letter-spacing:.08em;color:var(--ink-soft);
-  border:1.2px solid var(--paper-3);border-radius:999px;padding:1px 7px;flex:0 0 auto;order:3}
+.daybreak{display:flex;align-items:baseline;gap:8px;margin:26px 0 14px;font-size:16px;font-weight:700;letter-spacing:-.01em}
+.daybreak i{font-style:normal;font-size:12.5px;font-weight:600;color:var(--ink-3)}
 .list > .daybreak:first-of-type{margin-top:4px}
-.empty{border:1.5px dashed var(--paper-3);padding:30px 22px;text-align:center;color:var(--ink-soft)}
-.empty h3{font-family:var(--display);font-weight:500;font-size:20px;margin:0 0 6px;color:var(--ink)}
-.empty p{margin:0 0 14px;font-size:14px}
+.empty{background:var(--fill);border-radius:18px;padding:30px 22px;text-align:center;color:var(--ink-2)}
+.empty h3{font-weight:700;font-size:18px;letter-spacing:-.01em;margin:0 0 5px;color:var(--ink)}
+.empty p{margin:0 0 16px;font-size:14.5px}
 
-.stop{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;position:relative}
+.stop{display:grid;grid-template-columns:40px 1fr;gap:13px;align-items:start;position:relative}
 /* The title is the row's button. Its ::after is stretched over the whole row,
    so the entire card still opens the stop; the address link is lifted above
    that layer, so it alone goes to Maps. */
 .stop-open{display:block;width:100%;padding:0;text-align:left;letter-spacing:inherit}
 .stop-open::after{content:"";position:absolute;inset:0}
 .stop-open:focus-visible{outline:0}
-.stop-open:focus-visible::after{outline:3px solid var(--mustard);outline-offset:2px}
-.stop + .leg{margin:0 0 0 22px}
-.leg{border-left:2px dotted var(--paper-3);padding:7px 0 7px 22px;margin-left:22px;font-size:12px;color:var(--ink-soft);
-  font-family:var(--display);letter-spacing:.06em}
-.marker{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-family:var(--display);font-weight:600;font-size:19px;color:var(--paper);flex:0 0 auto}
-.marker.hollow{background:transparent !important;border:2px dashed var(--paper-3);color:var(--ink-soft)}
-.card{border-bottom:1px solid var(--paper-3);padding-bottom:14px;min-width:0}
-.card h3{font-family:var(--display);font-weight:500;font-size:19px;line-height:1.15;margin:3px 0 3px;letter-spacing:-.005em}
-.card .when{font-family:var(--display);font-size:13px;letter-spacing:.09em;color:var(--ink-soft)}
+.stop-open:focus-visible::after{outline:3px solid var(--yellow);outline-offset:2px;border-radius:8px}
+.card{border-bottom:1px solid var(--line);padding-bottom:15px;min-width:0}
+.card h3{font-weight:600;font-size:17px;line-height:1.25;letter-spacing:-.01em;margin:2px 0 3px}
+.card .when{font-size:13px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
 /* The address opens Apple Maps. The padding widens the tap area well past the
-   13.5px text, and the matching negative margin keeps the layout where it was. */
+   text, and the matching negative margin keeps the layout where it was. */
 .card .where{display:block;width:fit-content;max-width:100%;position:relative;z-index:1;
-  font-size:13.5px;color:var(--teal);text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere;
-  padding:8px 0;margin:-8px 0}
-.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
-.tag{font-family:var(--display);font-size:11px;letter-spacing:.09em;padding:2.5px 7px;border:1.2px solid currentColor;border-radius:2px}
-.tag.solid{border-color:transparent;color:var(--paper)}
-.locating{display:inline-flex;align-items:center;gap:6px;font-family:var(--display);font-size:11.5px;letter-spacing:.07em;
-  color:var(--stone);margin-top:7px}
-.locating .blip{width:7px;height:7px;border-radius:50%;background:var(--mustard);animation:blip 1.3s ease-in-out infinite}
-@keyframes blip{0%,100%{opacity:.25;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
-.noloc{font-family:var(--display);font-size:11.5px;letter-spacing:.06em;color:var(--brick);margin-top:7px;
-  border-bottom:1.5px solid var(--brick);display:inline-block;padding-bottom:1px}
-.stop-list{display:flex;flex-direction:column}
-.stop-row{display:contents}
+  font-size:14px;color:var(--link);text-decoration:none;overflow-wrap:anywhere;padding:8px 0;margin:-8px 0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{font-size:12px;font-weight:500;line-height:1.3;padding:3px 9px;border-radius:999px;background:var(--fill);color:var(--ink-2);font-variant-numeric:tabular-nums}
+/* "Not booked" reads louder than "Booked": unbooked is the thing being tracked. */
+.tag.unbooked,.tag.st-needsres{background:var(--red-tint);color:var(--red);font-weight:600}
+.tag.booked{background:var(--green-tint);color:var(--green)}
+.locating{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-3);margin-top:8px}
+.locating .blip{width:7px;height:7px;border-radius:50%;background:var(--yellow);animation:blip 1.3s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:.3;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
+.noloc{font-size:12.5px;font-weight:600;color:var(--red);margin-top:8px}
 
-/* ---------- fab ---------- */
-.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;
-  background:var(--orange);color:var(--paper);border-radius:999px;padding:13px 19px;
-  font-family:var(--display);font-size:14.5px;font-weight:500;letter-spacing:.05em;
-  box-shadow:0 3px 0 rgba(18,54,52,.4)}
+/* The walk to the next stop. A line runs from bullet to bullet, the way a
+   strip map joins stations. */
+.leg{margin-left:19px;border-left:2px solid var(--line);padding:9px 0 9px 32px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.stop:has(+ .leg) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+
+/* ---------- new stop ---------- */
+.fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;
+  background:var(--yellow);color:var(--ink);border-radius:999px;padding:14px 20px;font-size:15px;font-weight:700;
+  box-shadow:0 8px 22px rgba(0,0,0,.2),0 1px 3px rgba(0,0,0,.22)}
 @media (min-width:900px){.fab{right:calc(50% - var(--shell-max)/2 + 22px)}}
 @media (min-width:900px) and (max-width:1220px){.fab{right:22px}}
 
 /* ---------- sheet ---------- */
-.scrim{position:fixed;inset:0;background:rgba(18,54,52,.55);z-index:50;opacity:0;pointer-events:none;transition:opacity .18s}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:50;opacity:0;pointer-events:none;transition:opacity .18s}
 .scrim.open{opacity:1;pointer-events:auto}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--paper);
-  max-height:92dvh;display:flex;flex-direction:column;transform:translateY(102%);transition:transform .24s cubic-bezier(.32,.72,0,1);
-  padding-bottom:env(safe-area-inset-bottom,0px)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--surface);border-radius:22px 22px 0 0;
+  max-height:92dvh;display:flex;flex-direction:column;transform:translateY(102%);transition:transform .26s cubic-bezier(.32,.72,0,1);
+  padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -10px 40px rgba(0,0,0,.18)}
 .sheet.open{transform:translateY(0)}
-@media (min-width:900px){.sheet{left:auto;right:0;top:0;bottom:0;width:440px;max-height:none;transform:translateX(102%)}
-  .sheet.open{transform:translateX(0)}}
-.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;
-  background:var(--petrol);color:var(--paper);flex:0 0 auto}
-.sheet-head h2{font-family:var(--display);font-weight:500;font-size:20px;margin:0;letter-spacing:.01em}
-.sheet-head button{color:var(--paper);font-family:var(--display);font-size:22px;line-height:1;padding:4px 6px}
-.sheet-body{overflow:auto;padding:18px;-webkit-overflow-scrolling:touch}
-.sheet-foot{flex:0 0 auto;padding:12px 18px;border-top:1px solid var(--paper-3);display:flex;gap:10px;background:var(--paper-2)}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 12px 8px 18px;position:relative;flex:0 0 auto}
+/* grabber */
+.sheet-head::before{content:"";position:absolute;top:8px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:999px;background:#D6D6D0}
+.sheet-head h2{font-weight:700;font-size:19px;letter-spacing:-.015em;margin:0}
+.sheet-head button{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;
+  color:var(--ink-2);font-size:21px;line-height:1;position:relative}
+.sheet-head button::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:var(--fill);z-index:-1;top:50%;left:50%;margin:-16px 0 0 -16px}
+.sheet-head{isolation:isolate}
+.sheet-body{overflow:auto;padding:10px 18px 18px;-webkit-overflow-scrolling:touch}
+.sheet-foot{flex:0 0 auto;padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;background:var(--surface)}
+.sheet-foot:empty{display:none}
+@media (min-width:900px){
+  .sheet{left:auto;right:0;top:0;bottom:0;width:440px;max-height:none;border-radius:0;transform:translateX(102%)}
+  .sheet.open{transform:translateX(0)}
+  .sheet-head{padding-top:16px}
+  .sheet-head::before{display:none}
+}
+.sheet-lead{font-size:14.5px;color:var(--ink-2);margin:0 0 18px}
 
-.btn{flex:1;padding:13px 16px;border-radius:2px;font-family:var(--display);font-size:15px;font-weight:500;letter-spacing:.04em;text-align:center}
-.btn.primary{background:var(--petrol);color:var(--paper)}
-.btn.ghost{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
-.btn.danger{background:transparent;border:1.5px solid var(--brick);color:var(--brick);flex:0 0 auto;padding:13px 16px}
+.btn{flex:1;padding:14px 16px;border-radius:var(--r);font-size:16px;font-weight:600;text-align:center}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.ghost{background:var(--fill);color:var(--ink)}
+.btn.danger{background:var(--red-tint);color:var(--red);flex:0 0 auto}
+.btn:disabled{opacity:.55}
+.btn.inline{display:inline-block;flex:0 0 auto;padding:12px 20px}
 
 /* ---------- detail ---------- */
-.d-hero{display:flex;align-items:center;gap:14px;margin-bottom:16px}
-.d-hero .marker{width:54px;height:54px;font-size:23px}
-.d-hero h3{font-family:var(--display);font-weight:500;font-size:24px;line-height:1.1;margin:0}
-.d-hero .when{font-family:var(--display);font-size:13px;letter-spacing:.09em;color:var(--ink-soft)}
-.d-rows{border-top:1.5px solid var(--ink)}
-.d-row{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--paper-3);font-size:14px}
-.d-row dt{font-family:var(--display);font-size:11.5px;letter-spacing:.14em;color:var(--ink-soft);padding-top:2px}
+.d-hero{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.d-hero .marker{width:50px;height:50px;font-size:22px}
+.d-hero h3{font-weight:700;font-size:23px;line-height:1.15;letter-spacing:-.02em;margin:2px 0 0}
+.d-hero .when{font-size:13.5px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.d-tags{margin:0 0 16px}
+.d-rows{margin:0;border-top:1px solid var(--line)}
+.d-row{display:grid;grid-template-columns:92px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}
+/* Small caps labels, the way a settings list heads its rows. */
+.d-row dt,.f label:not(.check),.legend,.costgrid span,.bsplit span,.btotal span,.nb > span,.geostat{
+  font-size:11.5px;font-weight:600;letter-spacing:.05em;color:var(--ink-3)}
+.d-row dt{padding-top:3px}
 .d-row dd{margin:0;overflow-wrap:anywhere}
-.d-row a{color:var(--teal);text-decoration:underline;text-underline-offset:2px}
-.resbar{margin:16px 0;padding:13px 15px;border-left:5px solid var(--brick);background:var(--paper-2)}
-.resbar.booked{border-left-color:var(--olive)}
-.resbar h4{font-family:var(--display);font-weight:500;font-size:16px;margin:0 0 3px;letter-spacing:.02em;color:var(--brick)}
-.resbar.booked h4{color:var(--olive)}
-.resbar p{margin:0;font-size:13.5px;color:var(--ink-soft)}
-.resbar .quick{margin-top:9px;font-family:var(--display);font-size:12.5px;letter-spacing:.05em;
-  border:1.5px solid currentColor;padding:5px 11px;border-radius:2px;color:var(--brick)}
-.resbar.booked .quick{color:var(--olive)}
-.neighbors{display:grid;gap:8px;margin-top:16px}
-.nb{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:baseline;padding:9px 11px;background:var(--paper-2);font-size:13.5px;text-align:left;width:100%}
-.nb span{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft)}
-.costgrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--paper-3);margin:16px 0;border:1px solid var(--paper-3)}
-.costgrid div{background:var(--paper);padding:11px 13px}
-.nocost{margin:16px 0;padding:11px 13px;background:var(--paper-2);font-family:var(--display);
-  font-size:12.5px;letter-spacing:.06em;color:var(--ink-soft)}
-.costgrid b{display:block;font-family:var(--display);font-size:25px;font-weight:500;line-height:1.1}
-.costgrid span{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft)}
+.d-row a{text-decoration:none}
+/* Booking state. The one place a whole block takes colour. */
+.resbar{margin:0 0 16px;padding:14px 16px;border-radius:var(--r);background:var(--red-tint)}
+.resbar.booked{background:var(--green-tint)}
+.resbar h4{font-weight:700;font-size:16px;margin:0 0 2px;color:var(--red)}
+.resbar.booked h4{color:var(--green)}
+.resbar p{margin:0;font-size:14px;color:var(--ink-2)}
+.resbar .quick{margin-top:11px;font-size:14px;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--surface);color:var(--red)}
+.resbar.booked .quick{color:var(--green)}
+.neighbors{display:grid;gap:8px;margin-top:18px}
+.nb{display:grid;grid-template-columns:62px 1fr;gap:10px;align-items:baseline;padding:12px 14px;border-radius:var(--r);
+  background:var(--fill);font-size:15px;text-align:left;width:100%}
+.nb b{display:block;font-weight:600}
+.nb small{display:block;font-size:12.5px;color:var(--ink-2);margin-top:1px;font-variant-numeric:tabular-nums}
+.costgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 16px}
+.costgrid div{background:var(--fill);border-radius:var(--r);padding:12px 14px}
+.costgrid b{display:block;font-size:26px;font-weight:700;line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.nocost{margin:0 0 16px;padding:12px 14px;border-radius:var(--r);background:var(--fill);font-size:14px;color:var(--ink-2)}
 
 /* ---------- budget sheet ---------- */
-.btabs{display:flex;gap:0;border-bottom:1.5px solid var(--ink);margin:0 0 18px}
-.btab{flex:1 1 0;padding:10px 4px;font-family:var(--display);font-size:12px;letter-spacing:.08em;
-  color:var(--ink-soft);border-bottom:3px solid transparent;margin-bottom:-1.5px;white-space:nowrap}
-.btab[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--orange);font-weight:500}
+/* A segmented control. */
+.btabs{display:flex;gap:2px;padding:3px;border-radius:11px;background:var(--fill);margin:0 0 16px}
+.btab{flex:1 1 0;padding:8px 4px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.btab[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
 
 /* The headline figure. Deliberately oversized — the numerals are the feature. */
-.btotal{background:var(--petrol);color:var(--paper);padding:16px 18px;margin-bottom:1px}
-.btotal span{display:block;font-family:var(--display);font-size:10.5px;letter-spacing:.16em;opacity:.8}
-.btotal b{display:block;font-family:var(--display);font-size:44px;font-weight:500;line-height:1.05;letter-spacing:-.02em;margin-top:3px}
-
-.bsplit{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--paper-3);border:1px solid var(--paper-3)}
-.bsplit div{background:var(--paper);padding:11px 13px}
-.bsplit span{display:block;font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft)}
-.bsplit b{display:block;font-family:var(--display);font-size:24px;font-weight:500;line-height:1.1;margin-top:2px}
-.bsplit b.brick{color:var(--brick)}
-
-.bnote{margin:14px 0 0;padding:10px 12px;background:var(--paper-2);border-left:3px solid var(--mustard);
-  font-size:13px;color:var(--ink-soft);line-height:1.4}
-.bnote.ok{border-left-color:var(--olive)}
-.bfacts{border-top:1.5px solid var(--ink);margin-top:18px}
+.btotal{background:var(--black);color:#fff;border-radius:18px;padding:18px 18px 16px;margin-bottom:10px}
+.btotal span{display:block;color:var(--on-black-2)}
+.btotal b{display:block;font-size:46px;font-weight:800;line-height:1.05;letter-spacing:-.035em;margin-top:4px;font-variant-numeric:tabular-nums}
+.bsplit{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bsplit div{background:var(--fill);border-radius:var(--r);padding:12px 14px}
+.bsplit span{display:block}
+.bsplit b{display:block;font-size:24px;font-weight:700;line-height:1.15;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+.bsplit b.bad{color:var(--red)}
+.bnote{margin:14px 0 0;padding:11px 14px;border-radius:var(--r);background:#FFF6CF;font-size:13.5px;color:#5B4A00;line-height:1.4}
+.bnote.ok{background:var(--green-tint);color:var(--green)}
+.bfacts{border-top:1px solid var(--line);margin-top:18px}
 
 /* Proportional bars for the day and category breakdowns. */
-.brow{margin-bottom:15px}
-.brow-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:5px}
-.brow-top span{font-family:var(--display);font-size:13.5px;letter-spacing:.05em}
-.brow-top b{font-family:var(--display);font-size:18px;font-weight:500;letter-spacing:.01em;flex:0 0 auto}
-.bbar{height:9px;background:var(--paper-2);overflow:hidden}
-.bbar i{display:block;height:100%}
-.brow-sub{font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+.brow{margin-bottom:16px}
+.brow-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}
+.brow-top span{font-size:15px;font-weight:500}
+.brow-top b{font-size:17px;font-weight:700;letter-spacing:-.01em;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.bbar{height:8px;border-radius:999px;background:var(--fill);overflow:hidden}
+.bbar i{display:block;height:100%;border-radius:999px}
+.brow-sub{font-size:12.5px;color:var(--ink-3);margin-top:5px}
 
 /* Largest-first list. Tapping a row opens that stop. */
 .bitem{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;
-  padding:12px 0;border-bottom:1px solid var(--paper-3)}
+  padding:13px 0;border-bottom:1px solid var(--line)}
 .bitem-main{min-width:0}
-.bitem h4{font-family:var(--display);font-weight:500;font-size:16px;margin:0;line-height:1.2}
-.bitem .tags{margin-top:5px}
-.bitem > b{font-family:var(--display);font-size:20px;font-weight:500;flex:0 0 auto;letter-spacing:.01em}
+.bitem h4{font-weight:600;font-size:16px;margin:0;line-height:1.25}
+.bitem .tags{margin-top:6px}
+.bitem > b{font-size:19px;font-weight:700;flex:0 0 auto;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 
 /* ---------- form ---------- */
-.f{margin-bottom:15px}
-.f > label,.legend{display:block;font-family:var(--display);font-size:11.5px;letter-spacing:.14em;color:var(--ink-soft);margin-bottom:5px}
-/* type=email is in this list for the sign-in field on the gate. Without it
-   that input falls back to the browser default and looks nothing like the
-   rest of the form.
-
-   font-size is pinned to 16px rather than inheriting the 15px body size:
-   iOS Safari zooms the viewport when a focused field is under 16px, and does
-   not zoom back out afterwards. This app is used one-handed on a phone, so
-   that lurch on every field tap is worth the 1px. */
+.f{margin-bottom:16px}
+.f label:not(.check),.legend{display:block;margin-bottom:6px}
+/* font-size is pinned to 16px: iOS Safari zooms the viewport when a focused
+   field is under 16px, and does not zoom back out afterwards. This app is
+   used one-handed on a phone, so that lurch on every field tap matters. */
 .f input[type=text],.f input[type=email],.f input[type=password],.f input[type=url],.f input[type=time],.f input[type=number],.f select,.f textarea{
-  width:100%;padding:11px 12px;border:1.5px solid var(--paper-3);background:#FBF6EB;border-radius:2px;
-  font-size:16px}
-.f input:focus,.f select:focus,.f textarea:focus{border-color:var(--petrol)}
-.f textarea{min-height:76px;resize:vertical}
-.f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.f3{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.pickrow{display:flex;flex-wrap:wrap;gap:6px}
-.pick{padding:8px 12px;border:1.5px solid var(--ink);border-radius:999px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
-.pick .sw{width:9px;height:9px;border-radius:50%;background:currentColor}
-.pick[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-.check{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1.5px solid var(--paper-3);background:var(--paper-2);cursor:pointer}
-.check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--petrol);flex:0 0 auto}
-.check .t{font-family:var(--display);font-size:15px;font-weight:500}
-.check .s{font-size:12.5px;color:var(--ink-soft);margin-top:1px}
-.sub{border-left:3px solid var(--paper-3);padding:14px 0 2px 14px;margin:12px 0 0}
+  width:100%;padding:12px 14px;border:1.5px solid transparent;background:var(--fill);border-radius:12px;font-size:16px;
+  -webkit-appearance:none;appearance:none}
+.f input:focus,.f select:focus,.f textarea:focus{outline:0;border-color:var(--ink);background:var(--surface)}
+.f input[readonly]{color:var(--ink-2)}
+.f input[readonly]:focus{border-color:transparent;background:var(--fill)}
+.f textarea{min-height:80px;resize:vertical}
+.f2,.f3{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pickrow{display:flex;flex-wrap:wrap;gap:7px}
+.pick{padding:9px 14px;border-radius:999px;background:var(--fill);color:var(--ink-2);font-size:14px;font-weight:500;
+  display:inline-flex;align-items:center;gap:7px}
+.pick[aria-pressed="true"]{background:var(--ink);color:#fff}
+.pick.no[aria-pressed="true"]{background:var(--red)}
+.pick.yes[aria-pressed="true"]{background:var(--green)}
+.check{display:flex;align-items:flex-start;gap:11px;padding:14px;border-radius:var(--r);background:var(--fill);cursor:pointer}
+.check input{width:22px;height:22px;margin:0;accent-color:var(--ink);flex:0 0 auto}
+.check .t{display:block;font-size:15.5px;font-weight:600}
+.check .s{display:block;font-size:13px;color:var(--ink-2);margin-top:1px}
+.sub{border-left:2px solid var(--line);padding:14px 0 2px 14px;margin:12px 0 0}
 .extras{display:flex;flex-direction:column;gap:8px}
-.extra{display:grid;grid-template-columns:1fr 100px 40px;gap:8px}
-.extra button{border:1.5px solid var(--paper-3);border-radius:2px;color:var(--ink-soft);font-size:18px}
-.addlink{font-family:var(--display);font-size:13px;letter-spacing:.05em;color:var(--teal);border-bottom:1.5px solid var(--teal);padding-bottom:1px;margin-top:10px;display:inline-block}
-.hint{font-size:12.5px;color:var(--ink-soft);margin-top:6px}
-.err{color:var(--brick);font-size:12.5px;margin-top:6px;font-weight:700}
-.geobox{border:1.5px solid var(--paper-3);padding:13px;background:var(--paper-2)}
-.geostat{font-family:var(--display);font-size:12px;letter-spacing:.07em;margin-bottom:9px;color:var(--ink-soft)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));z-index:60;
-  background:var(--petrol-deep);color:var(--paper);padding:11px 17px;border-radius:2px;font-size:13.5px;
-  box-shadow:0 2px 0 rgba(0,0,0,.3);max-width:88vw;text-align:center}
+.extra{display:grid;grid-template-columns:1fr 100px 44px;gap:8px}
+.extra button{border-radius:12px;background:var(--fill);color:var(--ink-2);font-size:19px}
+.addlink{font-size:14.5px;font-weight:600;color:var(--link);margin-top:10px;display:inline-block;padding:2px 0}
+.hint{font-size:13px;color:var(--ink-3);margin-top:6px}
+.err{color:var(--red);font-size:13.5px;margin-top:8px;font-weight:600}
+.geobox{padding:14px;border-radius:var(--r);background:var(--fill)}
+.geobox input{background:var(--surface) !important}
+.geostat{margin-bottom:10px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:60;
+  background:var(--ink);color:#fff;padding:12px 18px;border-radius:var(--r);font-size:14px;font-weight:500;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:88vw;text-align:center}
+
 .menu{position:relative}
-/* color is explicit because .masthead sets color:var(--paper) and the global
-   button{color:inherit} rule pulls that cream into this cream popover —
-   which renders the menu items invisible. */
-.menu-pop{position:absolute;right:0;top:calc(100% + 6px);background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);
-  min-width:190px;z-index:30;padding:5px}
-.menu-pop button{display:block;width:100%;text-align:left;padding:9px 11px;font-size:14px}
-.menu-pop button:hover{background:var(--paper-2)}
-.mast-menu{color:var(--paper);font-size:20px;padding:4px 8px;line-height:1}
+.mast-menu{color:#fff;font-size:20px;line-height:1;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.16);
+  display:flex;align-items:center;justify-content:center;padding:0 0 9px}
+/* color is explicit because .masthead sets white and the global
+   button{color:inherit} rule would pull that into this white popover. */
+.menu-pop{position:absolute;right:0;top:calc(100% + 8px);background:var(--surface);color:var(--ink);border-radius:var(--r);
+  min-width:210px;z-index:30;padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06)}
+.menu-pop button{display:block;width:100%;text-align:left;padding:11px 12px;font-size:15px;border-radius:9px}
+.menu-pop button:hover{background:var(--fill)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-/* ============================================================
-   Added for the hosted build: MapLibre map, sign-in gate, sync badge
-   ============================================================ */
-
-/* ---------- map ---------- */
-#map{position:absolute;inset:0}
-.maplibregl-ctrl-attrib{font-family:var(--body);font-size:10.5px}
-.maplibregl-ctrl-group{border-radius:3px !important;box-shadow:0 1px 0 rgba(0,0,0,.3) !important}
-
-/* numbered stop markers, mid-century circles */
-.mk{width:34px;height:34px;border-radius:50%;border:2.5px solid var(--paper);
-  color:var(--paper);font-family:var(--display);font-weight:600;font-size:15px;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;
-  box-shadow:0 1px 4px rgba(18,54,52,.45);transition:transform .14s}
-.mk:hover{transform:scale(1.08)}
-.mk.sel{transform:scale(1.22);border-width:3.5px;z-index:2}
-
 /* ---------- sign-in gate ---------- */
-.gate{position:fixed;inset:0;background:var(--petrol-deep);display:flex;align-items:center;justify-content:center;padding:24px;z-index:80}
+.gate{position:fixed;inset:0;background:var(--black);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80;overflow:auto}
 .gate[hidden]{display:none}
-.gate-card{background:var(--paper);max-width:400px;width:100%;padding:30px 26px 26px;position:relative}
-.gate-card::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;
-  background:linear-gradient(90deg,var(--mustard) 0 25%,var(--orange) 25% 50%,var(--brick) 50% 75%,var(--teal) 75% 100%)}
-.gate-card .mast-title{font-size:38px;margin:0 0 2px}
-.gate-sub{font-family:var(--display);font-size:13px;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 22px}
+.gate-card{background:var(--surface);border-radius:24px;max-width:400px;width:100%;padding:28px 22px 22px;margin:auto}
+.gate-card .mast-title{color:var(--ink);font-size:36px;margin:0 0 6px}
+.gate-card .mast-title span{color:var(--ink-3)}
+.gate-sub{font-size:14px;color:var(--ink-2);margin:0 0 22px;font-variant-numeric:tabular-nums}
 .gate-card .btn{width:100%}
 .gate-card .addlink{margin-top:14px;padding:8px 0 2px}
-.gate-card .btn.ghost{margin-bottom:15px}
-/* Sits above the form, next to the field it is about, so it stays in view
+.gate-card .btn.ghost{margin-bottom:16px}
+/* Sits above the form, next to the fields it is about, so it stays in view
    with the keyboard up. A failure gets the "not booked" treatment: at the
    foot of the card in the status line's grey it went unread, and a refused
    sign-in looked like a button that did nothing. */
-.gate-msg{font-size:13.5px;color:var(--ink-soft);margin:0 0 14px}
+.gate-msg{font-size:14px;color:var(--ink-2);margin:0 0 16px}
 .gate-msg:empty{display:none}
-.gate-msg.bad{color:var(--brick);font-weight:700;padding:10px 12px;border-left:5px solid var(--brick);background:var(--paper-2)}
+.gate-msg.bad{color:var(--red);font-weight:600;padding:12px 14px;border-radius:12px;background:var(--red-tint)}
 
 /* ---------- live-sync badge ---------- */
-.sync{position:absolute;right:20px;top:16px;width:8px;height:8px;border-radius:50%;
-  background:var(--brick);opacity:.9}
-.sync.on{background:var(--olive)}
+.sync{position:absolute;right:18px;top:22px;width:7px;height:7px;border-radius:50%;background:#FF6B5E}
+.sync.on{background:#4ADE80}
 .sync.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;
-  border:1.5px solid var(--olive);opacity:.45;animation:pulse 2.4s ease-out infinite}
+  border:1.5px solid #4ADE80;opacity:.45;animation:pulse 2.4s ease-out infinite}
 @keyframes pulse{0%{transform:scale(.7);opacity:.55}100%{transform:scale(1.5);opacity:0}}
 
 /* ---------- Home Screen app ---------- */
 /* index.html asks iOS for a translucent status bar, which lays the page out
    underneath the clock. :root's top padding clears it at rest, but the list
-   would scroll up behind it. This fixed band keeps the clock on petrol. It
-   has no height wherever there is no inset, Safari included. */
+   would scroll up behind it. This fixed band keeps the clock on the sign's
+   black. It has no height wherever there is no inset, Safari included. */
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);
-  background:var(--petrol-deep);z-index:90}
-
-/* ---------- trip password sheet ---------- */
-.sheet-lead{font-size:14px;color:var(--ink-soft);margin:0 0 16px}
-.f input[readonly]{background:var(--paper-2);color:var(--ink-soft)}
+  background:var(--black);z-index:90}

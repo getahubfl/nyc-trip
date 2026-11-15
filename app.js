@@ -30,24 +30,31 @@ const DAYS = [
   { id: '2026-11-29', dow: 'Sun', n: '29', label: 'Sunday, November 29' },
   { id: '2026-11-30', dow: 'Mon', n: '30', label: 'Monday, November 30 — departure' }
 ];
+/* Category colours are the subway lines' own, so a numbered stop reads as a
+   bullet off a subway sign. `on` is the numeral colour where white would be
+   too faint; the yellow lines carry black numerals on the real signs too. */
 const CATS = [
-  { id: 'breakfast', name: 'Breakfast',   color: '#E0A526' },
-  { id: 'lunch',     name: 'Lunch',       color: '#78894A' },
-  { id: 'dinner',    name: 'Dinner',      color: '#A93B2E' },
-  { id: 'coffee',    name: 'Coffee',      color: '#C2796F' },
-  { id: 'snacks',    name: 'Snacks',      color: '#64305A' },
-  { id: 'sights',    name: 'Sightseeing', color: '#2E7D77' },
-  { id: 'show',      name: 'Show',        color: '#D4622A' },
-  { id: 'travel',    name: 'Travel',      color: '#4A6B8A' },
-  { id: 'other',     name: 'Other',       color: '#8A7B68' }
+  { id: 'breakfast', name: 'Breakfast',   color: '#FCCC0A', on: '#111111' },   // N Q R W
+  { id: 'lunch',     name: 'Lunch',       color: '#00933C' },                  // 4 5 6
+  { id: 'dinner',    name: 'Dinner',      color: '#EE352E' },                  // 1 2 3
+  { id: 'coffee',    name: 'Coffee',      color: '#996633' },                  // J Z
+  { id: 'snacks',    name: 'Snacks',      color: '#6CBE45', on: '#111111' },   // G
+  { id: 'sights',    name: 'Sightseeing', color: '#0039A6' },                  // A C E
+  { id: 'show',      name: 'Show',        color: '#B933AD' },                  // 7
+  { id: 'travel',    name: 'Travel',      color: '#00ADD0', on: '#111111' },   // T
+  { id: 'other',     name: 'Other',       color: '#808183' }                   // S
 ];
 const CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
+// The custom properties styles.css reads to colour a bullet or a dot.
+const catStyle = c => `--c:${c.color}` + (c.on ? `;--on:${c.on}` : '');
+/* Status carries no colour of its own. Only "needs booking" is set apart, in
+   the stylesheet, with the red kept for everything not yet booked. */
 const STATUSES = [
-  { id: 'confirmed', name: 'Confirmed',     color: '#78894A' },
-  { id: 'tentative', name: 'Tentative',     color: '#E0A526' },
-  { id: 'needsres',  name: 'Needs booking', color: '#A93B2E' },
-  { id: 'question',  name: 'Open question', color: '#4A6B8A' },
-  { id: 'optional',  name: 'Optional',      color: '#8A7B68' }
+  { id: 'confirmed', name: 'Confirmed' },
+  { id: 'tentative', name: 'Tentative' },
+  { id: 'needsres',  name: 'Needs booking' },
+  { id: 'question',  name: 'Open question' },
+  { id: 'optional',  name: 'Optional' }
 ];
 const STAT = Object.fromEntries(STATUSES.map(s => [s.id, s]));
 
@@ -373,7 +380,7 @@ const Map_ = {
         id: 'route-line', type: 'line', source: 'route',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#1B4F4B', 'line-width': 3, 'line-opacity': 0.65,
+          'line-color': '#111111', 'line-width': 3, 'line-opacity': 0.55,
           'line-dasharray': [1.6, 1.4]
         }
       });
@@ -387,7 +394,7 @@ const Map_ = {
     const el = document.createElement('button');
     el.className = 'mk' + (selected ? ' sel' : '');
     el.type = 'button';
-    el.style.background = c.color;
+    el.style.cssText = catStyle(c);
     el.setAttribute('aria-label', e.title || 'Stop');
     el.textContent = num;
     el.addEventListener('click', ev => { ev.stopPropagation(); openDetail(e.id); });
@@ -526,7 +533,7 @@ function budgetByDay() {
     return {
       label: d.dow + ' ' + d.n,
       sub: d.label.replace(/^[A-Za-z]+, /, ''),
-      color: 'var(--petrol)',
+      color: 'var(--ink)',
       total: evs.reduce((s, e) => s + totalCost(e), 0),
       count: evs.filter(e => totalCost(e) > 0).length
     };
@@ -564,7 +571,7 @@ function renderRail() {
 function renderChips() {
   $('#chips').innerHTML = CATS.map(c => {
     const on = S.cats.has(c.id);
-    return `<button class="chip" data-cat="${c.id}" aria-pressed="${on}" style="color:${on ? 'var(--paper)' : c.color};border-color:${c.color}">
+    return `<button class="chip" data-cat="${c.id}" aria-pressed="${on}" style="${catStyle(c)}">
       <i class="sw"></i>${c.name}</button>`;
   }).join('');
   // Collapsible filter panel. The button carries the active-filter state so
@@ -597,7 +604,7 @@ function renderSyncBadge() {
 /* ---------- render: list ---------- */
 function statusTag(e) {
   const s = STAT[e.status] || STAT.confirmed;
-  return `<span class="tag" style="color:${s.color}">${s.name}</span>`;
+  return `<span class="tag st-${s.id}">${s.name}</span>`;
 }
 function renderList() {
   const list = visibleEvents();
@@ -610,24 +617,24 @@ function renderList() {
     el.innerHTML = S.toBookOnly
       ? `<div class="empty"><h3>Everything is booked</h3><p>No outstanding reservations on the trip.</p></div>`
       : allDays
-        ? `<div class="daytitle">THE WHOLE TRIP</div>
+        ? `<div class="daytitle">The whole trip</div>
            <div class="empty"><h3>Nothing matches</h3>
              <p>${S.events.length ? 'Every stop is filtered out — widen the category filter.' : 'No stops on the trip yet.'}</p>
-             <button class="btn primary" data-new="1" style="display:inline-block;flex:0 0 auto;padding:11px 20px">Add the first stop</button>
+             <button class="btn primary inline" data-new="1">Add the first stop</button>
            </div>`
-        : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>
+        : `<div class="daytitle">${esc(d.label)}</div>
            <div class="empty"><h3>Nothing here yet</h3>
              <p>${S.events.some(e => e.day === S.day) ? 'Every stop on this day is filtered out.' : 'This day is wide open.'}</p>
-             <button class="btn primary" data-new="1" style="display:inline-block;flex:0 0 auto;padding:11px 20px">Add the first stop</button>
+             <button class="btn primary inline" data-new="1">Add the first stop</button>
            </div>`;
     return;
   }
 
   let html = S.toBookOnly
-    ? `<div class="daytitle">STILL TO BOOK — ${list.length} ITEM${list.length === 1 ? '' : 'S'}</div>`
+    ? `<div class="daytitle">Still to book · ${list.length}</div>`
     : allDays
-      ? `<div class="daytitle">THE WHOLE TRIP — ${list.length} STOP${list.length === 1 ? '' : 'S'}</div>`
-      : `<div class="daytitle">${esc(d.label.toUpperCase())}</div>`;
+      ? `<div class="daytitle">The whole trip · ${list.length} stop${list.length === 1 ? '' : 's'}</div>`
+      : `<div class="daytitle">${esc(d.label)}</div>`;
 
   let pinIdx = 0;
   let curDay = null;
@@ -642,10 +649,10 @@ function renderList() {
     if (allDays && e.day !== curDay) {
       curDay = e.day;
       const cnt = list.filter(x => x.day === e.day).length;
-      html += `<div class="daybreak"><span>${esc((dd ? dd.label : e.day).toUpperCase())}</span><i>${cnt}</i></div>`;
+      html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i></div>`;
     }
 
-    const dayTag = S.toBookOnly && dd ? `<span class="tag" style="color:var(--ink-soft)">${dd.dow} ${dd.n}</span>` : '';
+    const dayTag = S.toBookOnly && dd ? `<span class="tag">${dd.dow} ${dd.n}</span>` : '';
 
     let locBit = '';
     if (!placed) {
@@ -658,7 +665,7 @@ function renderList() {
       }
     }
     const res = e.needsReservation
-      ? `<span class="tag ${e.booked ? 'solid' : ''}" style="${e.booked ? 'background:var(--olive)' : 'color:var(--brick)'}">${e.booked ? 'Booked' : 'Not booked'}</span>`
+      ? `<span class="tag ${e.booked ? 'booked' : 'unbooked'}">${e.booked ? 'Booked' : 'Not booked'}</span>`
       : '';
 
     /* The title is the button and styles.css stretches it over the whole
@@ -666,12 +673,12 @@ function renderList() {
        the button any more: the address is a link, and a link may not sit
        inside a button. */
     html += `<div class="stop">
-      <div class="marker${placed ? '' : ' hollow'}" style="background:${c.color}">${num}</div>
+      <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${num}</div>
       <div class="card">
         <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
         ${e.address ? `<a class="where" href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : ''}
-        <div class="tags">${dayTag}<span class="tag" style="color:${c.color}">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag" style="color:var(--ink-soft)">${money(totalCost(e))}</span>` : ''}</div>
+        <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
     </div>`;
@@ -761,7 +768,7 @@ function budgetBodyHTML() {
       <div class="btotal"><span>TRIP TOTAL</span><b>${money(t.grand)}</b></div>
       <div class="bsplit">
         <div><span>COMMITTED</span><b>${money(t.committed)}</b></div>
-        <div><span>STILL TO BOOK</span><b class="brick">${money(t.outstanding)}</b></div>
+        <div><span>STILL TO BOOK</span><b class="bad">${money(t.outstanding)}</b></div>
       </div>
       ${t.unpricedCount
         ? `<div class="bnote">${t.unpricedCount} stop${t.unpricedCount === 1 ? '' : 's'} ${t.unpricedCount === 1 ? 'has' : 'have'} no cost recorded, so this total is incomplete.</div>`
@@ -804,9 +811,9 @@ function budgetBodyHTML() {
       <div class="bitem-main">
         <h4>${esc(e.title || 'Untitled stop')}</h4>
         <div class="tags">
-          <span class="tag" style="color:var(--ink-soft)">${d ? d.dow + ' ' + d.n : ''}</span>
-          <span class="tag" style="color:${c.color}">${c.name}</span>
-          ${out ? `<span class="tag" style="color:var(--brick)">Not booked</span>` : ''}
+          <span class="tag">${d ? d.dow + ' ' + d.n : ''}</span>
+          <span class="tag">${c.name}</span>
+          ${out ? `<span class="tag unbooked">Not booked</span>` : ''}
         </div>
       </div>
       <b>${money(totalCost(e))}</b>
@@ -867,8 +874,8 @@ function openDetail(id) {
       ? legText(haversine({ lat: e.lat, lng: e.lng }, { lat: o.lat, lng: o.lng }))
       : 'distance unknown';
     return `<button class="nb" data-open="${o.id}"><span>${label}</span><div>
-      <b style="font-family:var(--display);font-weight:500">${esc(o.title)}</b><br>
-      <span style="letter-spacing:0;font-family:var(--body);font-size:12.5px;text-transform:none;color:var(--ink-soft)">${esc(fmtTime(o.time) || 'time TBD')} · ${esc(dtxt)}</span>
+      <b>${esc(o.title)}</b>
+      <small>${esc(fmtTime(o.time) || 'time TBD')} · ${esc(dtxt)}</small>
     </div></button>`;
   };
 
@@ -876,14 +883,14 @@ function openDetail(id) {
 
   const body = `
     <div class="d-hero">
-      <div class="marker" style="background:${c.color}">${placed && numInView ? numInView : '·'}</div>
+      <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${placed && numInView ? numInView : '·'}</div>
       <div>
         <div class="when">${esc(day.dow)} ${esc(day.n)} · ${esc(fmtTime(e.time) || 'time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3>${esc(e.title || 'Untitled stop')}</h3>
       </div>
     </div>
-    <div class="tags" style="margin-bottom:14px">
-      <span class="tag" style="color:${c.color}">${c.name}</span>${statusTag(e)}
+    <div class="tags d-tags">
+      <span class="tag">${c.name}</span>${statusTag(e)}
     </div>
     ${resHTML}
     ${(per || totalCost(e) || extras.length)
@@ -895,13 +902,13 @@ function openDetail(id) {
     <dl class="d-rows">
       ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd><a href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a></dd></div>` : ''}
       <div class="d-row"><dt>LOCATION</dt><dd>${placed
-        ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span style="color:var(--ink-soft);font-size:12.5px">matched: ${esc(e.geoResolved)}</span>` : ''}
+        ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span class="muted small">matched: ${esc(e.geoResolved)}</span>` : ''}
            <br><a href="${mapsDirectionsUrl(e)}" target="_blank" rel="noopener">Directions</a>`
         : (e.geoStatus === 'pending'
-            ? `<span style="color:var(--stone)">Still looking…</span>`
+            ? `<span class="muted">Still looking…</span>`
             : e.geoStatus === 'cleared'
-              ? `<span style="color:var(--ink-soft)">Location removed. Use “Re-locate missing pins” to look it up again.</span>`
-              : `<span style="color:var(--brick)">Not placed on the map yet</span>`)}</dd></div>
+              ? `<span class="muted">Location removed. Use “Re-locate missing pins” to look it up again.</span>`
+              : `<span class="bad">Not placed on the map yet</span>`)}</dd></div>
       ${extras.length ? `<div class="d-row"><dt>EXTRAS</dt><dd>${extras.map(x => `${esc(x.label || 'Extra')} — ${money(x.amount)}`).join('<br>')}</dd></div>` : ''}
       ${e.link ? `<div class="d-row"><dt>LINK</dt><dd><a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.link.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
       ${e.notes ? `<div class="d-row"><dt>NOTES</dt><dd>${esc(e.notes)}</dd></div>` : ''}
@@ -955,7 +962,7 @@ function formHTML() {
     <div class="pickrow" id="f-days">${DAYS.map(d => `<button type="button" class="pick" data-day="${d.id}" aria-pressed="${f.day === d.id}">${d.dow} ${d.n}</button>`).join('')}</div></div>
 
   <div class="f"><span class="legend">CATEGORY</span>
-    <div class="pickrow" id="f-cats">${CATS.map(c => `<button type="button" class="pick" data-cat="${c.id}" aria-pressed="${f.category === c.id}" style="color:${f.category === c.id ? 'var(--paper)' : c.color};border-color:${c.color};${f.category === c.id ? 'background:' + c.color + ';' : ''}"><i class="sw"></i>${c.name}</button>`).join('')}</div></div>
+    <div class="pickrow" id="f-cats">${CATS.map(c => `<button type="button" class="pick" data-cat="${c.id}" aria-pressed="${f.category === c.id}" style="${catStyle(c)}"><i class="sw"></i>${c.name}</button>`).join('')}</div></div>
 
   <div class="f f2">
     <div><label for="f-time">START</label><input id="f-time" type="time" value="${esc(f.time)}"></div>
@@ -963,7 +970,7 @@ function formHTML() {
   </div>
 
   <div class="f"><span class="legend">STATUS</span>
-    <div class="pickrow" id="f-stat">${STATUSES.map(s => `<button type="button" class="pick" data-stat="${s.id}" aria-pressed="${f.status === s.id}" style="color:${f.status === s.id ? 'var(--paper)' : s.color};border-color:${s.color};${f.status === s.id ? 'background:' + s.color + ';' : ''}">${s.name}</button>`).join('')}</div></div>
+    <div class="pickrow" id="f-stat">${STATUSES.map(s => `<button type="button" class="pick" data-stat="${s.id}" aria-pressed="${f.status === s.id}">${s.name}</button>`).join('')}</div></div>
 
   <div class="f">
     <label class="check" for="f-res">
@@ -973,8 +980,8 @@ function formHTML() {
     <div class="sub" id="f-ressub" ${f.needsReservation ? '' : 'hidden'}>
       <div class="f"><span class="legend">BOOKING</span>
         <div class="pickrow" id="f-booked">
-          <button type="button" class="pick" data-booked="no" aria-pressed="${!f.booked}" style="border-color:var(--brick);color:${f.booked ? 'var(--brick)' : 'var(--paper)'};${f.booked ? '' : 'background:var(--brick);'}">Not booked</button>
-          <button type="button" class="pick" data-booked="yes" aria-pressed="${f.booked}" style="border-color:var(--olive);color:${f.booked ? 'var(--paper)' : 'var(--olive)'};${f.booked ? 'background:var(--olive);' : ''}">Booked</button>
+          <button type="button" class="pick no" data-booked="no" aria-pressed="${!f.booked}">Not booked</button>
+          <button type="button" class="pick yes" data-booked="yes" aria-pressed="${f.booked}">Booked</button>
         </div></div>
       <div class="f f2">
         <div><label for="f-conf">CONFIRMATION</label><input id="f-conf" type="text" value="${esc(f.confirmation)}" placeholder="ABC123"></div>
@@ -1067,35 +1074,20 @@ function wireForm() {
     const catBtn = e.target.closest('[data-cat]');
     if (catBtn) {
       formState.category = catBtn.dataset.cat;
-      [...$('#f-cats').children].forEach(b => {
-        const c = CAT[b.dataset.cat], on = b === catBtn;
-        b.setAttribute('aria-pressed', on);
-        b.style.color = on ? 'var(--paper)' : c.color;
-        b.style.background = on ? c.color : 'transparent';
-      });
+      [...$('#f-cats').children].forEach(b => b.setAttribute('aria-pressed', b === catBtn));
       return;
     }
     const stBtn = e.target.closest('[data-stat]');
     if (stBtn) {
       formState.status = stBtn.dataset.stat;
-      [...$('#f-stat').children].forEach(b => {
-        const s = STAT[b.dataset.stat], on = b === stBtn;
-        b.setAttribute('aria-pressed', on);
-        b.style.color = on ? 'var(--paper)' : s.color;
-        b.style.background = on ? s.color : 'transparent';
-      });
+      [...$('#f-stat').children].forEach(b => b.setAttribute('aria-pressed', b === stBtn));
       return;
     }
     const bk = e.target.closest('[data-booked]');
     if (bk) {
       formState.booked = bk.dataset.booked === 'yes';
-      [...$('#f-booked').children].forEach(b => {
-        const yes = b.dataset.booked === 'yes', on = (yes === formState.booked);
-        b.setAttribute('aria-pressed', on);
-        const col = yes ? 'var(--olive)' : 'var(--brick)';
-        b.style.background = on ? col : 'transparent';
-        b.style.color = on ? 'var(--paper)' : col;
-      });
+      [...$('#f-booked').children].forEach(b =>
+        b.setAttribute('aria-pressed', (b.dataset.booked === 'yes') === formState.booked));
       return;
     }
     if (e.target.id === 'f-addextra') {
@@ -1370,6 +1362,18 @@ function setPending(email) {
 // Set by a code sign-in, read once after the reload that follows it.
 const OFFER_PASSWORD_KEY = 'nyc-trip-offer-password';
 
+/* One trip password, no email. When config.js names a trip account, the
+   gate asks only for the password and signs in to that account, so family
+   can be given a single word. The email ships in the public config.
+
+   Supabase refuses passwords under 6 characters, so what is typed is padded
+   with this fixed suffix before it is sent, both when signing in and when
+   the password is set. It adds no secrecy: it is in this public file. Setting
+   the password anywhere but the app's Trip password sheet must add it too. */
+const TRIP_LOGIN = String(CFG.tripLogin || '').trim();
+const PW_PAD = '-nyc-trip';
+const pw = typed => typed + PW_PAD;
+
 let gateEmail = '';
 function gateStep(step) {
   $('#gateForm').hidden = step !== 'password';
@@ -1390,14 +1394,14 @@ async function signIn(email, password) {
   // strand the button on "Signing in…" with nothing said.
   let error;
   try {
-    ({ error } = await sb.auth.signInWithPassword({ email, password }));
+    ({ error } = await sb.auth.signInWithPassword({ email, password: pw(password) }));
   } catch (err) { error = err; }
   if (error) {
     btn.disabled = false;
     btn.textContent = 'Sign in';
-    gateSay(/invalid login/i.test(error.message)
-      ? 'That email and password do not match. If this email has no trip password yet, use an emailed code.'
-      : error.message, true);
+    gateSay(!/invalid login/i.test(error.message) ? error.message
+      : TRIP_LOGIN ? 'That is not the trip password.'
+      : 'That email and password do not match. If this email has no trip password yet, use an emailed code.', true);
     return;
   }
   location.reload();
@@ -1471,16 +1475,22 @@ let gateWired = false;
 function wireGate() {
   if (gateWired) return;
   gateWired = true;
-  $('#gateEmail').value = unstash(localStorage, LOGIN_KEY);
+  if (TRIP_LOGIN) {
+    $('#gateEmailRow').hidden = true;
+    $('#gateEmail').required = false;
+    $('#gatePassHint').textContent = 'One password for the whole trip.';
+  } else {
+    $('#gateEmail').value = unstash(localStorage, LOGIN_KEY);
+  }
   $('#gateForm').addEventListener('submit', ev => {
     ev.preventDefault();
-    signIn($('#gateEmail').value.trim(), $('#gatePass').value);
+    signIn(TRIP_LOGIN || $('#gateEmail').value.trim(), $('#gatePass').value);
   });
   // Nothing is sent on the way in: a code may already be waiting in the
   // inbox, and the hourly limit makes every unneeded email expensive.
   $('#gateUseCode').addEventListener('click', () => {
-    if (!$('#gateEmail').reportValidity()) return;
-    awaitCode($('#gateEmail').value.trim(), 'Tap “Email me a code”, or type one you already have.');
+    if (!TRIP_LOGIN && !$('#gateEmail').reportValidity()) return;
+    awaitCode(TRIP_LOGIN || $('#gateEmail').value.trim(), 'Tap “Email me a code”, or type one you already have.');
   });
   $('#gateSend').addEventListener('click', sendCode);
   $('#gateCodeForm').addEventListener('submit', ev => {
@@ -1501,13 +1511,15 @@ function openPassword() {
   // The email field is there for the phone's password manager, which files
   // the new password under whatever username it can see in the form.
   openSheet('Trip password', `
-    <p class="sheet-lead">With a password, this email signs in on any phone straight away, with no email to wait for. To share the trip, give someone this email and the password.</p>
+    <p class="sheet-lead">${TRIP_LOGIN
+      ? 'This is the one password for the trip. Anyone who has it can open and edit the plan.'
+      : 'With a password, this email signs in on any phone straight away, with no email to wait for. To share the trip, give someone this email and the password.'}</p>
     <form id="pwForm">
       <div class="f"><label for="pw-email">SIGN-IN EMAIL</label>
         <input id="pw-email" type="email" autocomplete="username" value="${esc(email)}" readonly></div>
       <div class="f"><label for="pw-new">NEW PASSWORD</label>
         <input id="pw-new" type="password" autocomplete="new-password" required>
-        <div class="hint">At least 8 characters. One you use nowhere else, and not your email password.</div></div>
+        <div class="hint">At least 4 characters, and not one you use anywhere else.</div></div>
     </form>
     <div class="bnote">Saving signs this email out on every other phone. Each signs back in with the new password.</div>
     <div class="err" id="pw-err" hidden></div>`,
@@ -1518,14 +1530,14 @@ function openPassword() {
 async function savePassword() {
   const say = m => { const el = $('#pw-err'); el.textContent = m; el.hidden = false; };
   const password = $('#pw-new').value;
-  if (password.length < 8) { say('Use at least 8 characters.'); $('#pw-new').focus(); return; }
+  if (password.length < 4) { say('Use at least 4 characters.'); $('#pw-new').focus(); return; }
 
   const btn = $('[data-savepw]');
   btn.disabled = true;
   btn.textContent = 'Saving…';
   let error;
   try {
-    ({ error } = await sb.auth.updateUser({ password }));
+    ({ error } = await sb.auth.updateUser({ password: pw(password) }));
   } catch (err) { error = err; }
   if (error) {
     btn.disabled = false;

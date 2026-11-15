@@ -1,16 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Home Screen icon. Square and full-bleed: iOS rounds the corners itself.
-       Letterforms are drawn as polygons so the file needs no font. -->
-  <rect width="512" height="512" fill="#1B4F4B"/>
-  <g fill="#EFE6D3">
+       Letterforms are drawn as polygons so the file needs no font. A subway
+       sign: white on black, with the rule in taxi yellow. -->
+  <rect width="512" height="512" fill="#0B0B0B"/>
+  <g fill="#FFFFFF">
     <!-- N -->
     <polygon points="60,324 60,124 112,124 186,247.3 186,124 232,124 232,324 180,324 106,200.7 106,324"/>
     <!-- Y -->
     <polygon points="262,124 316,124 357,191.5 398,124 452,124 380,242.6 380,324 334,324 334,242.6"/>
   </g>
-  <!-- the masthead rule -->
-  <rect x="60"  y="360" width="98" height="28" fill="#E0A526"/>
-  <rect x="158" y="360" width="98" height="28" fill="#D4622A"/>
-  <rect x="256" y="360" width="98" height="28" fill="#A93B2E"/>
-  <rect x="354" y="360" width="98" height="28" fill="#2E7D77"/>
+  <rect x="60" y="360" width="392" height="28" fill="#FCCC0A"/>
 </svg>

@@ -13,6 +13,11 @@ window.TRIP_CONFIG = {
   supabaseUrl:     'https://YOUR-PROJECT-REF.supabase.co',
   supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
 
+  // The one account everybody signs in to. When set, the sign-in page asks
+  // only for the trip password. Leave empty to ask for an email as well.
+  // Whatever goes here is readable by anyone who opens the site.
+  tripLogin: '',
+
   // Other free OpenFreeMap styles: bright, liberty, dark, fiord.
   // "positron" is the muted one that suits the paper palette.
   mapStyle: 'https://tiles.openfreemap.org/styles/positron'

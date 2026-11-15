@@ -71,6 +71,7 @@ repository secrets. Add them under
 |---|---|
 | `SUPABASE_URL` | your project URL |
 | `SUPABASE_ANON_KEY` | the anon / public key |
+| `TRIP_LOGIN` | the email of the one account everyone signs in to. Optional: without it the sign-in page also asks for an email. It is visible to anyone who opens the site. |
 
 Do **not** add the service_role key as a secret. The Pages build output is
 public.
@@ -144,7 +145,7 @@ npm install          # playwright
 node test/smoke.cjs
 ```
 
-Runs fully offline against stubs. 81 assertions.
+Runs fully offline against stubs. 85 assertions.
 
 ## Attribution
 

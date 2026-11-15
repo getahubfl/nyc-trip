@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>New York — Thanksgiving 2026</title>
-<meta name="theme-color" content="#1B4F4B">
+<meta name="theme-color" content="#0B0B0B">
 
 <!-- Home Screen app. Added from Safari's Share menu, the page opens full
      screen under its own icon, with its own saved sign-in. -->
@@ -14,11 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="New York">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗽</text></svg>">
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 
 <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -31,21 +27,21 @@
 <!-- ============ sign-in gate ============ -->
 <section class="gate" id="gate" hidden>
   <div class="gate-card">
-    <h1 class="mast-title" style="color:var(--ink)"><span>THANKSGIVING</span>New York</h1>
+    <h1 class="mast-title"><span>THANKSGIVING</span>New York</h1>
     <p class="gate-sub">Nov 25 – 30, 2026</p>
     <p class="gate-msg" id="gateMsg" role="status"></p>
     <form id="gateForm">
-      <div class="f">
+      <div class="f" id="gateEmailRow">
         <label for="gateEmail">EMAIL</label>
         <input id="gateEmail" type="email" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="you@example.com">
       </div>
       <div class="f">
         <label for="gatePass">TRIP PASSWORD</label>
         <input id="gatePass" type="password" required autocomplete="current-password">
-        <div class="hint">The password set for this trip, not the one for your email.</div>
+        <div class="hint" id="gatePassHint">The password set for this trip, not the one for your email.</div>
       </div>
       <button class="btn primary" id="gateSignIn" type="submit">Sign in</button>
-      <button class="addlink" id="gateUseCode" type="button">No password yet? Use an emailed code</button>
+      <button class="addlink" id="gateUseCode" type="button">Forgot it? Email a code</button>
     </form>
     <form id="gateCodeForm" hidden>
       <button class="btn ghost" id="gateSend" type="button">Email me a code</button>
