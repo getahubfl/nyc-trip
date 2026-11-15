@@ -324,7 +324,7 @@ button{cursor:pointer;border:0;background:none}
    iOS Safari zooms the viewport when a focused field is under 16px, and does
    not zoom back out afterwards. This app is used one-handed on a phone, so
    that lurch on every field tap is worth the 1px. */
-.f input[type=text],.f input[type=email],.f input[type=url],.f input[type=time],.f input[type=number],.f select,.f textarea{
+.f input[type=text],.f input[type=email],.f input[type=password],.f input[type=url],.f input[type=time],.f input[type=number],.f select,.f textarea{
   width:100%;padding:11px 12px;border:1.5px solid var(--paper-3);background:#FBF6EB;border-radius:2px;
   font-size:16px}
 .f input:focus,.f select:focus,.f textarea:focus{border-color:var(--petrol)}
@@ -389,6 +389,7 @@ button{cursor:pointer;border:0;background:none}
 .gate-sub{font-family:var(--display);font-size:13px;letter-spacing:.16em;color:var(--ink-soft);margin:0 0 22px}
 .gate-card .btn{width:100%}
 .gate-card .addlink{margin-top:14px;padding:8px 0 2px}
+.gate-card .btn.ghost{margin-bottom:15px}
 /* Sits above the form, next to the field it is about, so it stays in view
    with the keyboard up. A failure gets the "not booked" treatment: at the
    foot of the card in the status line's grey it went unread, and a refused
@@ -412,3 +413,7 @@ button{cursor:pointer;border:0;background:none}
    has no height wherever there is no inset, Safari included. */
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);
   background:var(--petrol-deep);z-index:90}
+
+/* ---------- trip password sheet ---------- */
+.sheet-lead{font-size:14px;color:var(--ink-soft);margin:0 0 16px}
+.f input[readonly]{background:var(--paper-2);color:var(--ink-soft)}

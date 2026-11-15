@@ -1,7 +1,7 @@
 /* ============================================================
    NYC Trip Dashboard
    - data + realtime sync : Supabase
-   - auth                 : Supabase emailed code, allow-listed emails
+   - auth                 : Supabase email + password, allow-listed emails
    - map                  : MapLibre GL JS + OpenFreeMap tiles
    - geocoding            : Nominatim (OpenStreetMap), rate limited
    ============================================================ */
@@ -1256,6 +1256,7 @@ document.addEventListener('click', async e => {
   }
 
   if (e.target.closest('[data-cancel]')) { closeSheet(); return; }
+  if (e.target.closest('[data-savepw]')) { savePassword(); return; }
   if (e.target.closest('[data-save]')) { saveForm(); return; }
 
   const mb = e.target.closest('#menuBtn');
@@ -1278,6 +1279,7 @@ document.addEventListener('click', async e => {
       if (!miss.length) toast('Every stop with a name is already placed.');
       else { miss.forEach(x => Geo.enqueue(x.id)); toast('Looking up ' + miss.length + ' stop' + (miss.length === 1 ? '' : 's') + '…'); }
     }
+    if (act.dataset.act === 'password') openPassword();
     if (act.dataset.act === 'signout') { await sb.auth.signOut(); location.reload(); }
     return;
   }
@@ -1298,15 +1300,22 @@ function scrimBind() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && sheet() && !sheet().hidden) closeSheet();
 });
+document.addEventListener('submit', e => {
+  if (e.target.id === 'pwForm') { e.preventDefault(); savePassword(); }
+});
 
 /* ============================================================
    AUTH GATE
-   Sign-in is by typing the code from the email, not by following its link.
-   A link signs in whichever browser happens to open it. On a phone that is
-   the mail app's built-in browser rather than Safari, and never the Home
-   Screen app, which is a third browser with no address bar to paste into.
-   A typed code signs in the browser it is typed into. The link in the same
-   email still works wherever it does open in the right place.
+   Sign-in is an email and a trip password. A password signs in whichever
+   browser it is typed into, with no email to wait for. That matters because
+   Safari and the Home Screen app keep separate sign-ins: each asks once, then
+   stays signed in. The password belongs to the account, so sharing the trip
+   means handing over that account's email and its password.
+
+   The emailed code stays as the way in before a password exists and after
+   one is forgotten. It is typed, not followed as a link: a link signs in
+   whichever browser happens to open it, which on a phone is the mail app's
+   own and never the one that asked.
    ============================================================ */
 // Every reason the gate is given is a problem, so it is shown as one.
 function showGate(msg) {
@@ -1324,29 +1333,46 @@ function showApp() {
   $('#app').hidden = false;
 }
 
+/* Small things kept in this browser's storage so sign-in survives the page
+   being reloaded or signed out. Storage can be unavailable; nothing here is
+   required, so a failure only costs the convenience. */
+function stash(store, key, value) {
+  try {
+    if (value == null || value === '') store.removeItem(key);
+    else store.setItem(key, value);
+  } catch (err) { /* no storage */ }
+}
+function unstash(store, key) {
+  try { return store.getItem(key) || ''; } catch (err) { return ''; }
+}
+
+// The email last signed in here. A phone that gets signed out, as every other
+// phone is when the password changes, then only has to supply the password.
+const LOGIN_KEY = 'nyc-trip-login';
+
 /* Reading the email means leaving this page, and iOS may reload it on the way
    back, the Home Screen app especially. Remembering that a code is on its way
-   lets the reload land on the code step. Without it the page comes back
-   asking for an email, and a second email voids the first code and spends one
-   of the few sign-in emails Supabase sends per hour. */
+   lets the reload land on the code step. Without it the page comes back at
+   the start, and a second email voids the first code and spends one of the
+   few sign-in emails Supabase sends per hour. */
 const PENDING_KEY = 'nyc-trip-awaiting-code';
 const PENDING_MS = 60 * 60 * 1000;   // Supabase's default code lifetime
 function pendingEmail() {
   try {
-    const p = JSON.parse(localStorage.getItem(PENDING_KEY));
+    const p = JSON.parse(unstash(localStorage, PENDING_KEY));
     return p && Date.now() - p.at < PENDING_MS ? p.email : '';
   } catch (err) { return ''; }
 }
 function setPending(email) {
-  try {
-    if (email) localStorage.setItem(PENDING_KEY, JSON.stringify({ email, at: Date.now() }));
-    else localStorage.removeItem(PENDING_KEY);
-  } catch (err) { /* no storage: the code step just does not survive a reload */ }
+  stash(localStorage, PENDING_KEY, email ? JSON.stringify({ email, at: Date.now() }) : '');
 }
+
+// Set by a code sign-in, read once after the reload that follows it.
+const OFFER_PASSWORD_KEY = 'nyc-trip-offer-password';
 
 let gateEmail = '';
 function gateStep(step) {
-  $('#gateForm').hidden = step !== 'email';
+  $('#gateForm').hidden = step !== 'password';
   $('#gateCodeForm').hidden = step !== 'code';
 }
 function awaitCode(email, msg) {
@@ -1356,29 +1382,49 @@ function awaitCode(email, msg) {
   $('#gateCode').focus();
 }
 
-async function sendCode(email) {
+async function signIn(email, password) {
+  const btn = $('#gateSignIn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  // A thrown error is shown like a returned one. Left uncaught it would
+  // strand the button on "Signing in…" with nothing said.
+  let error;
+  try {
+    ({ error } = await sb.auth.signInWithPassword({ email, password }));
+  } catch (err) { error = err; }
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    gateSay(/invalid login/i.test(error.message)
+      ? 'That email and password do not match. If this email has no trip password yet, use an emailed code.'
+      : error.message, true);
+    return;
+  }
+  location.reload();
+}
+
+async function sendCode() {
   const btn = $('#gateSend');
   btn.disabled = true;
   btn.textContent = 'Sending…';
-  // A thrown error is shown like a returned one. Left uncaught it would
-  // strand the button on "Sending…" with nothing said.
   let error;
   try {
     ({ error } = await sb.auth.signInWithOtp({
-      email,
+      email: gateEmail,
       options: { emailRedirectTo: window.location.href.split('#')[0] }
     }));
   } catch (err) { error = err; }
   btn.disabled = false;
-  btn.textContent = 'Send me a code';
+  btn.textContent = 'Email me a code';
   if (error) {
     gateSay(/rate limit/i.test(error.message)
-      ? 'Supabase only sends a few sign-in emails an hour, and that limit is used up. Wait an hour — or tap “I already have a code” and use the newest email.'
+      ? 'Supabase only sends a few sign-in emails an hour, and that limit is used up. Wait an hour, or type the code from the newest email you already have.'
       : error.message, true);
     return;
   }
-  setPending(email);
-  awaitCode(email, 'Check ' + email + ' for the code.');
+  setPending(gateEmail);
+  gateSay('Check ' + gateEmail + ' for the code.');
+  $('#gateCode').focus();
 }
 
 async function verifyCode(entered) {
@@ -1410,10 +1456,12 @@ async function verifyCode(entered) {
     btn.disabled = false;
     btn.textContent = 'Sign in';
     gateSay(!/expired|invalid/i.test(error.message) ? error.message
-      : link ? 'That link was already used or has expired. On an iPhone, pressing and holding a link to copy it uses it up. Start over and type the code instead.'
-      : 'That code did not work. It is wrong, already used or expired. Check the newest email, or start over.', true);
+      : link ? 'That link was already used or has expired. On an iPhone, pressing and holding a link to copy it uses it up. Type the code instead.'
+      : 'That code did not work. It is wrong, already used or expired. Check the newest email, or send another.', true);
     return;
   }
+  // Whoever needed a code has no working password. Offer one once they are in.
+  stash(sessionStorage, OFFER_PASSWORD_KEY, '1');
   location.reload();
 }
 
@@ -1423,28 +1471,70 @@ let gateWired = false;
 function wireGate() {
   if (gateWired) return;
   gateWired = true;
+  $('#gateEmail').value = unstash(localStorage, LOGIN_KEY);
   $('#gateForm').addEventListener('submit', ev => {
     ev.preventDefault();
-    const email = $('#gateEmail').value.trim();
-    if (email) sendCode(email);
+    signIn($('#gateEmail').value.trim(), $('#gatePass').value);
   });
-  // For the email already in the inbox. Matters most when the hourly limit
-  // refuses to send another.
-  $('#gateHaveCode').addEventListener('click', () => {
-    if (!$('#gateForm').reportValidity()) return;
-    const email = $('#gateEmail').value.trim();
-    setPending(email);
-    awaitCode(email, 'Type the code from the newest email.');
+  // Nothing is sent on the way in: a code may already be waiting in the
+  // inbox, and the hourly limit makes every unneeded email expensive.
+  $('#gateUseCode').addEventListener('click', () => {
+    if (!$('#gateEmail').reportValidity()) return;
+    awaitCode($('#gateEmail').value.trim(), 'Tap “Email me a code”, or type one you already have.');
   });
+  $('#gateSend').addEventListener('click', sendCode);
   $('#gateCodeForm').addEventListener('submit', ev => {
     ev.preventDefault();
     verifyCode($('#gateCode').value);
   });
   $('#gateRestart').addEventListener('click', () => {
     setPending('');
-    gateStep('email');
+    gateStep('password');
     gateSay('');
   });
+}
+
+/* ---------- trip password ---------- */
+function openPassword() {
+  const email = S.session.user.email;
+  sheetMode = 'password';
+  // The email field is there for the phone's password manager, which files
+  // the new password under whatever username it can see in the form.
+  openSheet('Trip password', `
+    <p class="sheet-lead">With a password, this email signs in on any phone straight away, with no email to wait for. To share the trip, give someone this email and the password.</p>
+    <form id="pwForm">
+      <div class="f"><label for="pw-email">SIGN-IN EMAIL</label>
+        <input id="pw-email" type="email" autocomplete="username" value="${esc(email)}" readonly></div>
+      <div class="f"><label for="pw-new">NEW PASSWORD</label>
+        <input id="pw-new" type="password" autocomplete="new-password" required>
+        <div class="hint">At least 8 characters. One you use nowhere else, and not your email password.</div></div>
+    </form>
+    <div class="bnote">Saving signs this email out on every other phone. Each signs back in with the new password.</div>
+    <div class="err" id="pw-err" hidden></div>`,
+    `<button class="btn ghost" data-cancel="1">Cancel</button>
+     <button class="btn primary" data-savepw="1">Save password</button>`);
+}
+
+async function savePassword() {
+  const say = m => { const el = $('#pw-err'); el.textContent = m; el.hidden = false; };
+  const password = $('#pw-new').value;
+  if (password.length < 8) { say('Use at least 8 characters.'); $('#pw-new').focus(); return; }
+
+  const btn = $('[data-savepw]');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  let error;
+  try {
+    ({ error } = await sb.auth.updateUser({ password }));
+  } catch (err) { error = err; }
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = 'Save password';
+    say(error.message);
+    return;
+  }
+  closeSheet();
+  toast('Trip password saved.');
 }
 
 async function boot() {
@@ -1469,7 +1559,7 @@ async function boot() {
     if (LINK_FAILED) {
       // Whatever code was being waited for is in doubt too. Start clean.
       setPending('');
-      showGate('That sign-in link has expired or was already used. Send a new code, and type it in here rather than tapping the link.');
+      showGate('That sign-in link has expired or was already used. Sign in with the trip password, or use an emailed code and type it in rather than tapping its link.');
     } else {
       showGate('');
       const waiting = pendingEmail();
@@ -1478,6 +1568,7 @@ async function boot() {
     return;
   }
   setPending('');
+  stash(localStorage, LOGIN_KEY, session.user.email);
 
   showApp();
   Map_.init();
@@ -1521,6 +1612,11 @@ async function boot() {
     .forEach(e => Geo.enqueue(e.id));
 
   try { Map_.fit(); } catch (err) { console.warn('[boot] map fit failed', err); }
+
+  if (unstash(sessionStorage, OFFER_PASSWORD_KEY)) {
+    stash(sessionStorage, OFFER_PASSWORD_KEY, '');
+    openPassword();
+  }
 }
 
 /* Console helper: reports what the app actually believes about each stop's
