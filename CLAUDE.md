@@ -45,7 +45,7 @@ Everything here is on a free tier with no credit card anywhere.
 | Hosting | GitHub Pages | Free on a free account for public repos. Static only, which is all this is. |
 | Map | MapLibre GL JS + OpenFreeMap | Free, no API key, no card, no request limits. OSM data. Google and Mapbox both want a card on file. |
 | Data + live sync | Supabase (Postgres + Realtime) | Realtime pushes row changes over a websocket, which is the "both phones update" requirement. |
-| Auth | Supabase email + password | No email to wait for at sign-in. Restricted to an allow-list of two emails. An emailed code is the fallback — see Conventions. |
+| Auth | Supabase password, one trip account | Family type one password, no email. Restricted to an allow-list in `trip_members`. An emailed code is the fallback — see Conventions. |
 | Geocoding | Nominatim (OpenStreetMap) | Free, no key. Rate limited to one request per second by policy. |
 | Keepalive | GitHub Actions cron | Free Supabase projects pause after 7 days idle; a paused project cold-starts in 10–30s. |
 
@@ -75,7 +75,7 @@ GitHub secret used by the Pages workflow, never in the repo.
 index.html              page shell, auth gate, map container
 manifest.webmanifest    makes "Add to Home Screen" a full-screen app
 icons/                  Home Screen icon: icon.svg is the source, PNGs rendered from it
-styles.css              all styling (mid-century modern, see below)
+styles.css              all styling (see Design direction)
 app.js                  the whole application, ES module
 config.example.js       template — copy to config.js with real values
 supabase/schema.sql     tables, RLS policies, realtime, heartbeat. Run once.
@@ -115,14 +115,17 @@ sheet/detail/form → global event handling → auth gate → boot.
   `geo_status = 'manual'` and the lookup will not overwrite it.
 - **Nominatim is one request per second, serialised.** Do not parallelise the
   geocoding queue. Their usage policy is the constraint, not performance.
-- **Sign-in is an email and a trip password.** Safari and the Home Screen
-  app keep separate sign-ins, so each asks once and then stays signed in; a
-  password makes that one step with no email to wait for. The password is set
-  from ⋯ → Trip password (`updateUser`) and belongs to the account, so sharing
-  the trip means handing over that account's email and password. Saving a
-  password signs that account out everywhere else — Supabase does that, not
-  the app. A shared password with no email field would need its own account
-  created in Supabase and added to `trip_members`; that was not done.
+- **Sign-in is one trip password.** `config.js` names a single trip account
+  (`tripLogin`, from the `TRIP_LOGIN` repo secret); the gate then asks only
+  for the password and signs in to that account. Without `tripLogin` it asks
+  for an email too. The account's email is therefore public in the deployed
+  config — keep it out of the repo itself. Safari and the Home Screen app
+  keep separate sign-ins; each asks once and then stays signed in.
+- **Passwords are padded.** Supabase refuses passwords under 6 characters and
+  the family password is shorter, so `pw()` appends `PW_PAD` before every
+  sign-in and every `updateUser`. It adds no secrecy. Set the password only
+  from ⋯ → Trip password; one set in the Supabase dashboard must include the
+  suffix or nobody can sign in.
 - **The emailed code is the fallback, and it is typed, not followed.** It is
   the way in before a password exists and after one is forgotten, and a code
   sign-in opens the Trip password sheet. A link signs in whichever browser
@@ -132,7 +135,7 @@ sheet/detail/form → global event handling → auth gate → boot.
   but the page does not advertise that: on an iPhone, pressing and holding a
   link to copy it loads a preview, and the preview spends the one-time link.
 - **A refused sign-in must be impossible to miss.** Gate messages go through
-  `gateSay`; failures are brick and sit above the field. In the status line's
+  `gateSay`; failures are red and sit above the field. In the status line's
   grey at the foot of the card, a refusal read as a button that did nothing.
 - **Never let the Supabase client see an error link.** `supabase-js` deletes
   the saved session when the URL carries `error_description`, which is how an
@@ -144,23 +147,24 @@ sheet/detail/form → global event handling → auth gate → boot.
 
 ## Design direction
 
-Mid-century modern New York — 1958 Manhattan, Saul Bass, travel-poster
-graphics. Warm paper ground, deep petrol for structure, dusty period accents
-(burnt orange, mustard, olive, brick). Flat colour; no gradients, no soft
-shadows, no glassmorphism. Geometric shapes, restrained border radius (crisp
-corners or full pills, not a uniform 8px on everything). Big, handsome numerals
-— the numbered stops and times are a visual feature.
+A modern app with New York in the details. Neutral canvas: white surfaces,
+near-black ink, the phone's system font, generous radius (14px cards and
+inputs, pills for chips). Colour is rationed to where it means something.
+The New York accents are three, and only three — don't add more:
 
-Mobile-first. Big tap targets, thumb-reachable actions, legible at arm's length
-in daylight.
+- **The sign.** The masthead and day rail are subway-sign black, with the
+  white rule across the top.
+- **Bullets.** Stop numbers are subway bullets: a disc in the category's line
+  colour with a Helvetica numeral (`CATS` in `app.js`; `--c`/`--on` via
+  `catStyle`). The walk between stops is drawn as a line joining them.
+- **Taxi yellow** for the one primary action (+ New stop) and the selected day.
 
-Avoid: generic SaaS cards, all-caps eyebrow labels over every heading, emoji as
-iconography, purple/indigo tech gradients.
-
-Colour encodes meaning, not decoration — category colour on markers and chips,
-status colour on badges, brick for "not booked" and olive for "booked".
-"Not booked" should read louder than "Booked"; unbooked items are the thing
-being tracked.
+Red means "not booked" or failed, and green means booked; nothing else uses
+them. "Not booked" reads louder than "Booked". Tags are neutral grey pills
+except those two. Category colour appears only on bullets, map pins and the
+dots in chips — never on text. Mobile-first, big tap targets, legible in
+daylight. Avoid: decorative colour, gradients, all-caps headings (small caps
+labels on form fields and detail rows only), emoji as iconography.
 
 ## Setup, in order
 
@@ -188,7 +192,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, and the desktop layout. 81 assertions, all
+coordinates, the Apple Maps links, and the desktop layout. 85 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

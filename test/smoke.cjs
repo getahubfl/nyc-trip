@@ -58,9 +58,10 @@ export function createClient(){
         sessionStorage.setItem('stubSession', JSON.stringify(a));
         return { data: {}, error: null };
       },
-      // The trip password is "broadway-1958".
+      // The trip password is "paris". The app pads what is typed before
+      // sending it, because Supabase refuses passwords under 6 characters.
       signInWithPassword: async ({ email, password }) => {
-        if (password !== 'broadway-1958') return { error: { message: 'Invalid login credentials' } };
+        if (password !== 'paris-nyc-trip') return { error: { message: 'Invalid login credentials' } };
         sessionStorage.setItem('stubSession', JSON.stringify({ email, via: 'password' }));
         return { data: {}, error: null };
       },
@@ -144,9 +145,9 @@ window.maplibregl = {
              above: m.getBoundingClientRect().bottom <= f.getBoundingClientRect().top };
   });
   ok('wrong password refused with a reason', seen.text.includes('do not match') && await p.locator('#gate:not([hidden])').count() === 1, seen.text);
-  ok('the refusal is marked and sits above the fields', seen.bad && seen.above && seen.colour === 'rgb(169, 59, 46)', JSON.stringify(seen));
+  ok('the refusal is marked and sits above the fields', seen.bad && seen.above && seen.colour === 'rgb(196, 40, 28)', JSON.stringify(seen));
 
-  await p.fill('#gatePass', 'broadway-1958');
+  await p.fill('#gatePass', 'paris');
   await p.locator('#gateSignIn').click();
   await p.waitForTimeout(900);
   ok('right password signs this browser in', await p.locator('#app:not([hidden])').count() === 1);
@@ -213,14 +214,14 @@ window.maplibregl = {
   console.log('\n— TRIP PASSWORD —');
   ok('a code sign-in offers to set a password', await c.locator('#sheet.open').count() === 1 && (await c.locator('#sheetTitle').innerText()) === 'Trip password');
   ok('sheet names the email the password belongs to', await c.inputValue('#pw-email') === 'you@example.com');
-  await c.fill('#pw-new', 'short');
+  await c.fill('#pw-new', 'abc');
   await c.locator('[data-savepw]').click();
   await c.waitForTimeout(200);
   ok('short password rejected', await c.locator('#pw-err:not([hidden])').count() === 1 && await c.evaluate(() => sessionStorage.getItem('stubUpdate')) === null);
-  await c.fill('#pw-new', 'broadway-1958');
+  await c.fill('#pw-new', 'paris');
   await c.locator('[data-savepw]').click();
   await c.waitForTimeout(500);
-  ok('password saved to the account', (await c.evaluate(() => JSON.parse(sessionStorage.getItem('stubUpdate')))).password === 'broadway-1958');
+  ok('password saved to the account', (await c.evaluate(() => JSON.parse(sessionStorage.getItem('stubUpdate')))).password === 'paris-nyc-trip');
   ok('sheet closes once saved', await c.locator('#sheet.open').count() === 0);
   await c.reload();
   await c.waitForTimeout(800);
@@ -230,6 +231,26 @@ window.maplibregl = {
   await c.waitForTimeout(400);
   ok('password can be changed from the menu', (await c.locator('#sheetTitle').innerText()) === 'Trip password');
   await c.close();
+
+  console.log('\n— ONE TRIP PASSWORD —');
+  const CONF = `window.TRIP_CONFIG={supabaseUrl:'http://stub',supabaseAnonKey:'stub'`;
+  fs.writeFileSync(ROOT + '/config.js', CONF + `,tripLogin:'trip@example.com'};`);
+  const t = await ctx.newPage();
+  await t.addInitScript(() => { window.__signedIn = false; });
+  await t.goto('http://local/index.html');
+  await t.waitForTimeout(600);
+  ok('only the password is asked for', await t.locator('#gateEmailRow[hidden]').count() === 1 && await t.locator('#gatePass').isVisible());
+  await t.fill('#gatePass', 'rome');
+  await t.locator('#gateSignIn').click();
+  await t.waitForTimeout(300);
+  ok('wrong trip password refused', (await t.locator('#gateMsg.bad').innerText()).includes('not the trip password'));
+  await t.fill('#gatePass', 'paris');
+  await t.locator('#gateSignIn').click();
+  await t.waitForTimeout(900);
+  ok('trip password signs in', await t.locator('#app:not([hidden])').count() === 1);
+  ok('signed in to the trip account', (await t.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')))).email === 'trip@example.com');
+  await t.close();
+  fs.writeFileSync(ROOT + '/config.js', CONF + '};');
 
   console.log('\n— SIGN IN BY PASTED LINK —');
   const r = await ctx.newPage();
@@ -324,7 +345,7 @@ window.maplibregl = {
   ok('extras captured', Array.isArray(row.extras) && row.extras[0].amount === 18);
   ok('queued for geocoding', row.geo_status === 'pending' || row.geo_status === 'ok', row.geo_status);
   ok('stop appears in the list', await q.locator('.stop').count() === 1);
-  ok('day jumped to the stop\'s day', (await q.locator('.daytitle').innerText()).includes('NOVEMBER 25'));
+  ok('day jumped to the stop\'s day', (await q.locator('.daytitle').innerText()).includes('November 25'));
 
   console.log('\n— GEOCODING —');
   await q.waitForTimeout(2600);
@@ -366,7 +387,7 @@ window.maplibregl = {
   await q.waitForTimeout(350);
   await q.locator('#tobook').click();
   await q.waitForTimeout(300);
-  ok('to-book header shown', (await q.locator('.daytitle').innerText()).includes('STILL TO BOOK'));
+  ok('to-book header shown', (await q.locator('.daytitle').innerText()).includes('Still to book'));
   ok('lists the outstanding stop', await q.locator('.stop').count() === 1);
   await q.locator('#tobook').click();
   await q.waitForTimeout(250);

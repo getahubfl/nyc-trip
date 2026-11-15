@@ -31,6 +31,7 @@ jobs:
           window.TRIP_CONFIG = {
             supabaseUrl:     '${{ secrets.SUPABASE_URL }}',
             supabaseAnonKey: '${{ secrets.SUPABASE_ANON_KEY }}',
+            tripLogin:       '${{ secrets.TRIP_LOGIN }}',
             mapStyle: 'https://tiles.openfreemap.org/styles/positron'
           };
           CONFIG
