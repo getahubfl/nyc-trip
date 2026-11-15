@@ -45,7 +45,7 @@ Everything here is on a free tier with no credit card anywhere.
 | Hosting | GitHub Pages | Free on a free account for public repos. Static only, which is all this is. |
 | Map | MapLibre GL JS + OpenFreeMap | Free, no API key, no card, no request limits. OSM data. Google and Mapbox both want a card on file. |
 | Data + live sync | Supabase (Postgres + Realtime) | Realtime pushes row changes over a websocket, which is the "both phones update" requirement. |
-| Auth | Supabase emailed code | No passwords. Restricted to an allow-list of two emails. The code is typed in, not followed as a link — see Conventions. |
+| Auth | Supabase email + password | No email to wait for at sign-in. Restricted to an allow-list of two emails. An emailed code is the fallback — see Conventions. |
 | Geocoding | Nominatim (OpenStreetMap) | Free, no key. Rate limited to one request per second by policy. |
 | Keepalive | GitHub Actions cron | Free Supabase projects pause after 7 days idle; a paused project cold-starts in 10–30s. |
 
@@ -115,15 +115,22 @@ sheet/detail/form → global event handling → auth gate → boot.
   `geo_status = 'manual'` and the lookup will not overwrite it.
 - **Nominatim is one request per second, serialised.** Do not parallelise the
   geocoding queue. Their usage policy is the constraint, not performance.
-- **Sign-in is a typed code, not a followed link.** A link signs in whichever
-  browser opens it, and on an iPhone that is the mail app's built-in browser —
-  not Safari, and never the Home Screen app, which keeps its own separate
-  sign-in. The gate asks for the code from the email and signs in the browser
-  it is typed into. The pending code survives a reload (`PENDING_KEY`),
-  because leaving for the mail app can reload the page. The same field also
-  accepts the email's link pasted in, but the page does not advertise that and
-  it is no substitute for the code: on an iPhone, pressing and holding a link
-  to copy it loads a preview, and the preview spends the one-time link.
+- **Sign-in is an email and a trip password.** Safari and the Home Screen
+  app keep separate sign-ins, so each asks once and then stays signed in; a
+  password makes that one step with no email to wait for. The password is set
+  from ⋯ → Trip password (`updateUser`) and belongs to the account, so sharing
+  the trip means handing over that account's email and password. Saving a
+  password signs that account out everywhere else — Supabase does that, not
+  the app. A shared password with no email field would need its own account
+  created in Supabase and added to `trip_members`; that was not done.
+- **The emailed code is the fallback, and it is typed, not followed.** It is
+  the way in before a password exists and after one is forgotten, and a code
+  sign-in opens the Trip password sheet. A link signs in whichever browser
+  opens it, which on an iPhone is the mail app's own. The pending code
+  survives a reload (`PENDING_KEY`), because leaving for the mail app can
+  reload the page. The code field also accepts the email's link pasted in,
+  but the page does not advertise that: on an iPhone, pressing and holding a
+  link to copy it loads a preview, and the preview spends the one-time link.
 - **A refused sign-in must be impossible to miss.** Gate messages go through
   `gateSay`; failures are brick and sit above the field. In the status line's
   grey at the foot of the card, a refusal read as a button that did nothing.
@@ -169,7 +176,7 @@ See `README.md` for the full walkthrough. Short version:
 5. In Supabase Auth → URL Configuration, add the Pages URL to the allowed
    redirect URLs, or the emailed link will bounce. In Auth → Emails, add
    `{{ .Token }}` to the **Magic Link** and **Confirm signup** templates so
-   the email carries the code the gate asks for.
+   the fallback email carries a code that can be typed in.
 6. Seed once: `SUPABASE_URL=… SUPABASE_SERVICE_KEY=… node private/seed.mjs`
 7. Open the site, sign in, and let the pins fill in (~35 seconds for 31 stops
    at one lookup per second).
@@ -178,18 +185,19 @@ See `README.md` for the full walkthrough. Short version:
 
 `node test/smoke.cjs` runs a Playwright suite with Supabase, MapLibre and
 Nominatim all stubbed, so it works with no network and no credentials. It
-covers sign-in by code and by pasted link, day and category filtering, the
-to-book view, adding and editing and deleting a stop, the reservation subform,
-cost maths, geocoding, manual coordinates, the Apple Maps links, and the
-desktop layout. 69 assertions, all passing as shipped.
+covers sign-in by password, by code and by pasted link, setting the trip
+password, day and category filtering, the to-book view, adding and editing and
+deleting a stop, the reservation subform, cost maths, geocoding, manual
+coordinates, the Apple Maps links, and the desktop layout. 81 assertions, all
+passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
 whether OpenFreeMap tiles actually render, whether Supabase RLS admits the
 right people, and whether realtime actually pushes between two browsers. Verify
 those three by hand on the first deploy — open the site in two windows and add
-a stop in one. It also cannot cover a real code email arriving from Supabase,
-or anything an iPhone does: the Home Screen app, its saved sign-in, and Apple
-Maps opening. Those need a phone.
+a stop in one. It also cannot cover Supabase accepting a real password or
+sending a real code email, or anything an iPhone does: the Home Screen app,
+its saved sign-in, and Apple Maps opening. Those need a phone.
 
 ## Open product questions
 

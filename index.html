@@ -36,20 +36,26 @@
     <p class="gate-msg" id="gateMsg" role="status"></p>
     <form id="gateForm">
       <div class="f">
-        <label for="gateEmail">YOUR EMAIL</label>
-        <input id="gateEmail" type="email" required autocomplete="email" placeholder="you@example.com">
+        <label for="gateEmail">EMAIL</label>
+        <input id="gateEmail" type="email" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="you@example.com">
       </div>
-      <button class="btn primary" id="gateSend" type="submit">Send me a code</button>
-      <button class="addlink" id="gateHaveCode" type="button">I already have a code</button>
+      <div class="f">
+        <label for="gatePass">TRIP PASSWORD</label>
+        <input id="gatePass" type="password" required autocomplete="current-password">
+        <div class="hint">The password set for this trip, not the one for your email.</div>
+      </div>
+      <button class="btn primary" id="gateSignIn" type="submit">Sign in</button>
+      <button class="addlink" id="gateUseCode" type="button">No password yet? Use an emailed code</button>
     </form>
     <form id="gateCodeForm" hidden>
+      <button class="btn ghost" id="gateSend" type="button">Email me a code</button>
       <div class="f">
         <label for="gateCode">CODE FROM THE EMAIL</label>
         <input id="gateCode" type="text" inputmode="numeric" autocomplete="one-time-code" required placeholder="123456">
         <div class="hint">It is in the email from Supabase Auth, which Gmail may file under Updates.</div>
       </div>
       <button class="btn primary" id="gateVerify" type="submit">Sign in</button>
-      <button class="addlink" id="gateRestart" type="button">Start over</button>
+      <button class="addlink" id="gateRestart" type="button">Back to the password</button>
     </form>
   </div>
 </section>
@@ -68,6 +74,7 @@
           <div class="menu-pop" id="menuPop" hidden>
             <button data-act="fit">Fit map to stops</button>
             <button data-act="relocate">Re-locate missing pins</button>
+            <button data-act="password">Trip password</button>
             <button data-act="signout">Sign out</button>
           </div>
         </div>

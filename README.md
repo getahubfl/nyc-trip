@@ -32,12 +32,14 @@ signup** template, add a line with the sign-in code:
 <p>Your code: <strong>{{ .Token }}</strong></p>
 ```
 
-The app signs in by that code rather than by the link, because a link signs in
-whichever browser opens it — on a phone, usually the mail app's own. Without
-this line the email has no code, and there is no dependable way in on an
-iPhone. The code box does accept the email's link pasted in, but pressing and
-holding a link to copy it makes an iPhone preview it, and the preview uses the
-one-time link up.
+Sign-in is normally an email and a trip password, set from ⋯ → **Trip
+password** once signed in. The emailed code is the way in before a password
+exists and after one is forgotten. It is a code rather than the link because a
+link signs in whichever browser opens it — on a phone, usually the mail app's
+own. Without this line the email has no code, and there is no dependable
+fallback on an iPhone: the code box does accept the email's link pasted in,
+but pressing and holding a link to copy it makes an iPhone preview it, and the
+preview uses the one-time link up.
 
 ## 2. Local config
 
@@ -128,7 +130,12 @@ goes to its pin.
 
 **On an iPhone**, open the site in Safari, then Share → **Add to Home Screen**.
 The icon opens the trip full screen. It keeps its own sign-in, separate from
-Safari's, so it asks for a code once and then stays signed in.
+Safari's, so it asks for the email and trip password once and then stays
+signed in.
+
+**To share the trip**, give someone the sign-in email and the trip password.
+Changing the password from ⋯ → **Trip password** signs every other phone out
+until it is given the new one.
 
 ## Tests
 
@@ -137,7 +144,7 @@ npm install          # playwright
 node test/smoke.cjs
 ```
 
-Runs fully offline against stubs. 69 assertions.
+Runs fully offline against stubs. 81 assertions.
 
 ## Attribution
 

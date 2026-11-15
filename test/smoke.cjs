@@ -58,6 +58,13 @@ export function createClient(){
         sessionStorage.setItem('stubSession', JSON.stringify(a));
         return { data: {}, error: null };
       },
+      // The trip password is "broadway-1958".
+      signInWithPassword: async ({ email, password }) => {
+        if (password !== 'broadway-1958') return { error: { message: 'Invalid login credentials' } };
+        sessionStorage.setItem('stubSession', JSON.stringify({ email, via: 'password' }));
+        return { data: {}, error: null };
+      },
+      updateUser: async (a) => { sessionStorage.setItem('stubUpdate', JSON.stringify(a)); return { data: {}, error: null }; },
       signOut: async () => ({ error: null }),
       onAuthStateChange(){ return { data: { subscription: { unsubscribe(){} } } }; }
     }
@@ -122,51 +129,107 @@ window.maplibregl = {
   await p.waitForTimeout(600);
   ok('gate shown when signed out', await p.locator('#gate:not([hidden])').count() === 1);
   ok('app hidden when signed out', await p.locator('#app[hidden]').count() === 1);
-  await p.fill('#gateEmail', 'limit@example.com');
-  await p.locator('#gateSend').click();
-  await p.waitForTimeout(300);
-  ok('rate limit explained in plain words', (await p.locator('#gateMsg').innerText()).includes('few sign-in emails an hour'));
-  ok('a failure is marked as one', await p.locator('#gateMsg.bad').count() === 1);
-  ok('stays on the email step when nothing was sent', await p.locator('#gateCodeForm[hidden]').count() === 1);
+  ok('asks for email and password', await p.locator('#gateForm:not([hidden]) #gatePass').count() === 1 && await p.locator('#gateCodeForm[hidden]').count() === 1);
 
+  console.log('\n— SIGN IN BY PASSWORD —');
   await p.fill('#gateEmail', 'you@example.com');
-  await p.locator('#gateSend').click();
+  await p.fill('#gatePass', 'not-the-password');
+  await p.locator('#gateSignIn').click();
   await p.waitForTimeout(300);
-  ok('code confirmation shown', (await p.locator('#gateMsg').innerText()).includes('Check you@example.com'));
-  ok('a confirmation is not marked as a failure', await p.locator('#gateMsg.bad').count() === 0);
-  ok('moves to the code step', await p.locator('#gateCodeForm:not([hidden])').count() === 1 && await p.locator('#gateForm[hidden]').count() === 1);
-
-  // Leaving for the mail app can cost the page its state. It must come back
-  // asking for the code, not for another email.
-  await p.reload();
-  await p.waitForTimeout(600);
-  ok('a reload comes back to the code step', await p.locator('#gateCodeForm:not([hidden])').count() === 1);
-
-  await p.fill('#gateCode', '000000');
-  await p.locator('#gateVerify').click();
-  await p.waitForTimeout(300);
-  ok('wrong code refused with a reason', (await p.locator('#gateMsg').innerText()).includes('did not work') && await p.locator('#gate:not([hidden])').count() === 1);
-  // A refusal has to be impossible to miss: marked, and beside the field
+  // A refusal has to be impossible to miss: marked, and beside the fields
   // rather than at the foot of the card, where the keyboard covers it.
   const seen = await p.evaluate(() => {
-    const m = document.querySelector('#gateMsg'), f = document.querySelector('#gateCode');
-    return { bad: m.classList.contains('bad'), above: m.getBoundingClientRect().bottom <= f.getBoundingClientRect().top,
-             colour: getComputedStyle(m).color };
+    const m = document.querySelector('#gateMsg'), f = document.querySelector('#gateEmail');
+    return { text: m.textContent, bad: m.classList.contains('bad'), colour: getComputedStyle(m).color,
+             above: m.getBoundingClientRect().bottom <= f.getBoundingClientRect().top };
   });
-  ok('the refusal is marked and sits above the field', seen.bad && seen.above && seen.colour === 'rgb(169, 59, 46)', JSON.stringify(seen));
+  ok('wrong password refused with a reason', seen.text.includes('do not match') && await p.locator('#gate:not([hidden])').count() === 1, seen.text);
+  ok('the refusal is marked and sits above the fields', seen.bad && seen.above && seen.colour === 'rgb(169, 59, 46)', JSON.stringify(seen));
 
-  await p.fill('#gateCode', 'https://x.supabase.co/auth/v1/verify?token=spent&type=magiclink');
-  await p.locator('#gateVerify').click();
-  await p.waitForTimeout(300);
-  ok('a spent link says why', (await p.locator('#gateMsg').innerText()).includes('already used or has expired'));
-
-  await p.fill('#gateCode', '123456');
-  await p.locator('#gateVerify').click();
+  await p.fill('#gatePass', 'broadway-1958');
+  await p.locator('#gateSignIn').click();
   await p.waitForTimeout(900);
-  ok('right code signs this browser in', await p.locator('#app:not([hidden])').count() === 1);
-  const viaCode = await p.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')));
-  ok('code checked against the email it was sent to', viaCode.email === 'you@example.com' && viaCode.token === '123456' && viaCode.type === 'email', JSON.stringify(viaCode));
+  ok('right password signs this browser in', await p.locator('#app:not([hidden])').count() === 1);
+  const viaPass = await p.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')));
+  ok('signed in with the email typed', viaPass.email === 'you@example.com' && viaPass.via === 'password', JSON.stringify(viaPass));
+  ok('no password prompt after a password sign-in', await p.locator('#sheet.open').count() === 0);
   ok('no errors on the gate', errs.length === 0, errs.join(' | '));
+
+  // Signed out again later, the phone only has to supply the password.
+  const back = await ctx.newPage();
+  await back.addInitScript(() => { window.__signedIn = false; });
+  await back.goto('http://local/index.html');
+  await back.waitForTimeout(600);
+  ok('email remembered for next time', await back.inputValue('#gateEmail') === 'you@example.com');
+  await back.close();
+
+  console.log('\n— SIGN IN BY EMAILED CODE —');
+  const c = await ctx.newPage();
+  await c.addInitScript(() => { window.__signedIn = false; });
+  await c.goto('http://local/index.html');
+  await c.waitForTimeout(600);
+  await c.fill('#gateEmail', 'limit@example.com');
+  await c.locator('#gateUseCode').click();
+  await c.waitForTimeout(200);
+  ok('code step opens without the password', await c.locator('#gateCodeForm:not([hidden])').count() === 1 && await c.locator('#gateForm[hidden]').count() === 1);
+  await c.locator('#gateSend').click();
+  await c.waitForTimeout(300);
+  ok('rate limit explained in plain words', (await c.locator('#gateMsg').innerText()).includes('few sign-in emails an hour'));
+  ok('a failure is marked as one', await c.locator('#gateMsg.bad').count() === 1);
+  await c.reload();
+  await c.waitForTimeout(600);
+  ok('nothing is awaited when nothing was sent', await c.locator('#gateForm:not([hidden])').count() === 1);
+
+  await c.fill('#gateEmail', 'you@example.com');
+  await c.locator('#gateUseCode').click();
+  await c.locator('#gateSend').click();
+  await c.waitForTimeout(300);
+  ok('code confirmation shown', (await c.locator('#gateMsg').innerText()).includes('Check you@example.com'));
+  ok('a confirmation is not marked as a failure', await c.locator('#gateMsg.bad').count() === 0);
+
+  // Leaving for the mail app can cost the page its state. It must come back
+  // asking for the code, not start again.
+  await c.reload();
+  await c.waitForTimeout(600);
+  ok('a reload comes back to the code step', await c.locator('#gateCodeForm:not([hidden])').count() === 1);
+
+  await c.fill('#gateCode', '000000');
+  await c.locator('#gateVerify').click();
+  await c.waitForTimeout(300);
+  ok('wrong code refused with a reason', (await c.locator('#gateMsg.bad').innerText()).includes('did not work') && await c.locator('#gate:not([hidden])').count() === 1);
+
+  await c.fill('#gateCode', 'https://x.supabase.co/auth/v1/verify?token=spent&type=magiclink');
+  await c.locator('#gateVerify').click();
+  await c.waitForTimeout(300);
+  ok('a spent link says why', (await c.locator('#gateMsg').innerText()).includes('already used or has expired'));
+
+  await c.fill('#gateCode', '123456');
+  await c.locator('#gateVerify').click();
+  await c.waitForTimeout(1100);
+  ok('right code signs this browser in', await c.locator('#app:not([hidden])').count() === 1);
+  const viaCode = await c.evaluate(() => JSON.parse(sessionStorage.getItem('stubSession')));
+  ok('code checked against the email it was sent to', viaCode.email === 'you@example.com' && viaCode.token === '123456' && viaCode.type === 'email', JSON.stringify(viaCode));
+
+  console.log('\n— TRIP PASSWORD —');
+  ok('a code sign-in offers to set a password', await c.locator('#sheet.open').count() === 1 && (await c.locator('#sheetTitle').innerText()) === 'Trip password');
+  ok('sheet names the email the password belongs to', await c.inputValue('#pw-email') === 'you@example.com');
+  await c.fill('#pw-new', 'short');
+  await c.locator('[data-savepw]').click();
+  await c.waitForTimeout(200);
+  ok('short password rejected', await c.locator('#pw-err:not([hidden])').count() === 1 && await c.evaluate(() => sessionStorage.getItem('stubUpdate')) === null);
+  await c.fill('#pw-new', 'broadway-1958');
+  await c.locator('[data-savepw]').click();
+  await c.waitForTimeout(500);
+  ok('password saved to the account', (await c.evaluate(() => JSON.parse(sessionStorage.getItem('stubUpdate')))).password === 'broadway-1958');
+  ok('sheet closes once saved', await c.locator('#sheet.open').count() === 0);
+  await c.reload();
+  await c.waitForTimeout(800);
+  ok('the offer is made once', await c.locator('#sheet.open').count() === 0);
+  await c.locator('#menuBtn').click();
+  await c.locator('#menuPop [data-act="password"]').click();
+  await c.waitForTimeout(400);
+  ok('password can be changed from the menu', (await c.locator('#sheetTitle').innerText()) === 'Trip password');
+  await c.close();
 
   console.log('\n— SIGN IN BY PASTED LINK —');
   const r = await ctx.newPage();
@@ -174,10 +237,7 @@ window.maplibregl = {
   await r.goto('http://local/index.html');
   await r.waitForTimeout(600);
   ok('signing in clears the awaited code', await r.locator('#gateForm:not([hidden])').count() === 1);
-  await r.fill('#gateEmail', 'you@example.com');
-  await r.locator('#gateHaveCode').click();
-  await r.waitForTimeout(200);
-  ok('"I already have a code" skips the email', await r.locator('#gateCodeForm:not([hidden])').count() === 1);
+  await r.locator('#gateUseCode').click();
   await r.fill('#gateCode', 'https://x.supabase.co/auth/v1/verify?token=abc123&type=magiclink&redirect_to=http://local/');
   await r.locator('#gateVerify').click();
   await r.waitForTimeout(900);
@@ -191,8 +251,7 @@ window.maplibregl = {
   await w.addInitScript(() => { window.__signedIn = false; });
   await w.goto('http://local/index.html');
   await w.waitForTimeout(600);
-  await w.fill('#gateEmail', 'you@example.com');
-  await w.locator('#gateHaveCode').click();
+  await w.locator('#gateUseCode').click();
   await w.fill('#gateCode', 'https://www.google.com/url?q=' + encodeURIComponent('https://x.supabase.co/auth/v1/verify?token=abc123&type=magiclink'));
   await w.locator('#gateVerify').click();
   await w.waitForTimeout(900);
