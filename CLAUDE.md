@@ -158,12 +158,19 @@ sheet/detail/form → global event handling → auth gate → boot.
 - **Every leg shows walking, car and subway on the card** (`Route`,
   `legHTML`). Distance and blocks come from the walking route; until it
   arrives, or if it fails, from the straight line. The car time is the route
-  length at Manhattan traffic speed (`CAR_MPH`, 8 mph) plus 2 minutes, never
-  faster than OSRM's empty-street time — OSRM alone said 4 minutes from
+  length at Manhattan traffic speed (`CAR_MPH`, 8 mph) plus 2 minutes for
+  legs up to 5 miles, and OSRM's time doubled beyond that (the airport is
+  highway; 8 mph said 2h 22m). Never faster than OSRM's empty-street time — OSRM alone said 4 minutes from
   Midtown to the Upper West Side. Subway is the fastest Transitous trip that
   uses a subway line, for the time the earlier stop ends. One request at a
   time, only for legs on screen, cached in localStorage for days; a failure
   is not retried until the app is reopened.
+- **The map draws real routes, not straight lines.** The day's legs follow
+  the walking route (the car route where there is none, e.g. from JFK; a
+  straight line only until a route arrives). Tapping a leg in the list swaps
+  in walk, car and subway for that leg with a key (`S.focusLeg`,
+  `Map_.drawRoutes`). Legs are derived from the current stops, so edits,
+  reorders and new stops re-route. Static picture, not navigation.
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -215,7 +222,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, and the desktop layout. 100 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, and the desktop layout. 106 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

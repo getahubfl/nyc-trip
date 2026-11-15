@@ -212,6 +212,7 @@ const S = {
   toBookOnly: false,
   filtersOpen: false,
   selected: null,
+  focusLeg: null,   // [fromId, toId] while a leg is tapped
   session: null,
   online: true
 };
@@ -394,26 +395,43 @@ const Map_ = {
       style: CFG.mapStyle || 'https://tiles.openfreemap.org/styles/positron',
       center: [-73.9820, 40.7600],
       zoom: 12.4,
-      attributionControl: { compact: true }
+      // One credits control, added below with the sources named. Leaving the
+      // built-in one on as well showed the credits twice, one copy floating
+      // over the middle of the map.
+      attributionControl: false
     });
     this.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
     this.map.addControl(new maplibregl.ScaleControl({ maxWidth: 110, unit: 'imperial' }), 'bottom-left');
     // OpenFreeMap asks for attribution; MapLibre renders it, we just name the source.
     this.map.addControl(new maplibregl.AttributionControl({
+      compact: true,
       customAttribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · ' +
         '<a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">© OpenMapTiles</a> · ' +
         'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
     }));
 
     this.map.on('load', () => {
-      this.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      this.map.addLayer({
-        id: 'route-line', type: 'line', source: 'route',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#111111', 'line-width': 3, 'line-opacity': 0.55,
-          'line-dasharray': [1.6, 1.4]
-        }
+      /* A: the walking route along real streets between each pair of stops
+         on the same day. B: walk, car and subway for one leg, shown while
+         that leg is tapped in the list. Static picture, not navigation. */
+      const empty = { type: 'FeatureCollection', features: [] };
+      const round = { 'line-cap': 'round', 'line-join': 'round' };
+      ['route', 'legcar', 'legsub', 'legwalk'].forEach(id => this.map.addSource(id, { type: 'geojson', data: empty }));
+      this.map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: round,
+        paint: { 'line-color': '#111111', 'line-width': 2.6, 'line-opacity': 0.8 } });
+      this.map.addLayer({ id: 'legcar-case', type: 'line', source: 'legcar', layout: round,
+        paint: { 'line-color': '#6B5B00', 'line-width': 4, 'line-opacity': 0.55 } });
+      this.map.addLayer({ id: 'legcar', type: 'line', source: 'legcar', layout: round,
+        paint: { 'line-color': '#FCCC0A', 'line-width': 2.2 } });
+      this.map.addLayer({ id: 'legsub', type: 'line', source: 'legsub', layout: round,
+        paint: { 'line-color': '#0A62C9', 'line-width': 2.4 } });
+      this.map.addLayer({ id: 'legwalk', type: 'line', source: 'legwalk', layout: round,
+        paint: { 'line-color': '#111111', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
+      // MapLibre opens the compact credits expanded, a wide box across the
+      // bottom of a phone-sized map. Start it folded to its (i) button.
+      document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show').forEach(el => {
+        el.classList.remove('maplibregl-compact-show');
+        el.removeAttribute('open');
       });
       this.ready = true;
       this.draw();
@@ -445,11 +463,7 @@ const Map_ = {
       this.markers.push(m);
     });
 
-    this.map.getSource('route').setData(
-      list.length > 1
-        ? { type: 'Feature', geometry: { type: 'LineString', coordinates: list.map(e => [e.lng, e.lat]) } }
-        : { type: 'FeatureCollection', features: [] }
-    );
+    this.drawRoutes(list);
 
     const empty = $('#mapEmpty');
     if (!list.length) {
@@ -458,6 +472,47 @@ const Map_ = {
     } else empty.hidden = true;
 
     if (fit && list.length) this.fit(list);
+  },
+
+  // Legs are consecutive stops on the same day, so they follow every edit,
+  // reorder and new stop. A leg whose route has not arrived yet, or failed,
+  // is drawn as a straight line until it does.
+  drawRoutes(list) {
+    if (!this.ready) return;
+    list = list || visibleEvents().filter(hasLoc);
+    const fc = lines => ({ type: 'FeatureCollection',
+      features: lines.filter(c => c && c.length > 1).map(c => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: c } })) });
+    const straight = (a, b) => [[a.lng, a.lat], [b.lng, b.lat]];
+    const leg = S.focusLeg && list.find(e => e.id === S.focusLeg[0]) && list.find(e => e.id === S.focusLeg[1])
+      ? [list.find(e => e.id === S.focusLeg[0]), list.find(e => e.id === S.focusLeg[1])] : null;
+    if (S.focusLeg && !leg) S.focusLeg = null;
+    $('#legKey').hidden = !leg;
+
+    const pairs = [];
+    if (!leg && !S.toBookOnly) for (let i = 0; i < list.length - 1; i++) if (list[i].day === list[i + 1].day) pairs.push([list[i], list[i + 1]]);
+    // Where there is no walking route (from the airport), the car route.
+    this.map.getSource('route').setData(fc(pairs.map(([a, b]) =>
+      (Route.get('walk', a, b) || {}).path || (Route.get('car', a, b) || {}).path || straight(a, b))));
+
+    const [a, b] = leg || [];
+    const r = mode => leg ? Route.get(mode, a, b) : null;
+    this.map.getSource('legwalk').setData(fc(leg ? [(r('walk') || {}).path || straight(a, b)] : []));
+    this.map.getSource('legcar').setData(fc(leg && r('car') ? [r('car').path] : []));
+    this.map.getSource('legsub').setData(fc(leg && r('sub') && r('sub').paths ? r('sub').paths : []));
+  },
+
+  // Frame one leg: both stops and every line drawn for it.
+  fitLeg(a, b) {
+    if (!this.ready) return;
+    const pts = [[a.lng, a.lat], [b.lng, b.lat]];
+    for (const mode of ['walk', 'car', 'sub']) {
+      const r = Route.get(mode, a, b);
+      if (r && r.path) pts.push(...r.path);
+      if (r && r.paths) r.paths.forEach(p => pts.push(...p));
+    }
+    const bounds = new maplibregl.LngLatBounds();
+    pts.forEach(p => bounds.extend(p));
+    this.map.fitBounds(bounds, { padding: { top: 90, bottom: 50, left: 50, right: 50 }, maxZoom: 16, duration: 600 });
   },
 
   fit(list) {
@@ -719,7 +774,8 @@ function renderList() {
     // whole-trip view the next stop may be tomorrow morning.
     const nxt = list[i + 1];
     if (!S.toBookOnly && nxt && nxt.day === e.day && placed && hasLoc(nxt)) {
-      html += `<div class="leg" data-leg="${Route.key(e, nxt)}">${legHTML(e, nxt)}</div>`;
+      const on = S.focusLeg && S.focusLeg[0] === e.id && S.focusLeg[1] === nxt.id;
+      html += `<button class="leg${on ? ' on' : ''}" data-leg="${Route.key(e, nxt)}" data-from="${e.id}" data-to="${nxt.id}" aria-pressed="${!!on}">${legHTML(e, nxt)}</button>`;
       legs.push([e, nxt]);
     }
   });
@@ -743,6 +799,23 @@ function renderList() {
    ============================================================ */
 const CAR_MPH = 8;
 const ROUTE_TTL = { walk: 30, car: 30, sub: 7 };   // days
+const ROUTE_STORE = 'nyc-trip-route2:';   // 2: routes carry their shape for the map
+const trim = path => path.map(([x, y]) => [Math.round(x * 1e5) / 1e5, Math.round(y * 1e5) / 1e5]);
+// Google's encoded polyline, which Transitous uses for each leg's shape.
+function decodePolyline(str, precision = 6) {
+  let i = 0, lat = 0, lng = 0;
+  const out = [], f = 10 ** precision;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let b, sh = 0, res = 0;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k) lng += d; else lat += d;
+    }
+    out.push([lng / f, lat / f]);
+  }
+  return out;
+}
 const Route = {
   mem: new Map(), queue: [], running: false, inflight: new Set(),
 
@@ -753,7 +826,7 @@ const Route = {
     return new Date(t.getTime() + (Number(a.durationMin) || 0) * 60000);
   },
   storeKey(mode, a, b) {
-    return 'nyc-trip-route:' + mode + ':' + this.key(a, b) + (mode === 'sub' ? ':' + this.leaves(a).toISOString().slice(0, 16) : '');
+    return ROUTE_STORE + mode + ':' + this.key(a, b) + (mode === 'sub' ? ':' + this.leaves(a).toISOString().slice(0, 16) : '');
   },
   get(mode, a, b) {
     const k = this.storeKey(mode, a, b);
@@ -792,6 +865,7 @@ const Route = {
       this.inflight.delete(k);
       const el = document.querySelector(`[data-leg="${this.key(a, b)}"]`);
       if (el) el.innerHTML = legHTML(a, b);
+      Map_.drawRoutes();
       await new Promise(res => setTimeout(res, 250));
     }
     this.running = false;
@@ -799,12 +873,17 @@ const Route = {
   async fetch(mode, a, b) {
     if (mode === 'walk' || mode === 'car') {
       const res = await fetch(`https://routing.openstreetmap.de/routed-${mode === 'walk' ? 'foot' : 'car'}/route/v1/driving/`
-        + `${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`);
+        + `${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`);
       const r = (await res.json()).routes?.[0];
       if (!r) return null;
+      // Within Manhattan, surface-street traffic sets the pace. A long leg is
+      // mostly highway (the airport), where the street speed would say over two
+      // hours: there, the routing time doubled for traffic.
+      const miles = r.distance / 1609.34;
       const min = mode === 'walk' ? r.duration / 60
-        : Math.max(r.duration / 60, (r.distance / 1609.34) / CAR_MPH * 60 + 2);
-      return { m: Math.round(r.distance), min: Math.max(1, Math.round(min)) };
+        : Math.max(r.duration / 60, miles <= 5 ? miles / CAR_MPH * 60 + 2 : r.duration / 60 * 2);
+      return { m: Math.round(r.distance), min: Math.max(1, Math.round(min)),
+        path: r.geometry && r.geometry.coordinates ? trim(r.geometry.coordinates) : null };
     }
     const res = await fetch(`https://api.transitous.org/api/v5/plan?fromPlace=${a.lat},${a.lng}&toPlace=${b.lat},${b.lng}`
       + `&time=${this.leaves(a).toISOString()}&numItineraries=4`);
@@ -812,7 +891,11 @@ const Route = {
     if (!its.length) return { none: true };
     const best = its.reduce((x, y) => (y.duration < x.duration ? y : x));
     const lines = best.legs.filter(l => l.mode === 'SUBWAY' && l.routeShortName).map(l => l.routeShortName);
-    return { min: Math.max(1, Math.round(best.duration / 60)), lines: [...new Set(lines)] };
+    // Only the train part of the trip is drawn; the walks to and from the
+    // station are left out.
+    const paths = best.legs.filter(l => l.mode === 'SUBWAY' && l.legGeometry && l.legGeometry.points)
+      .map(l => trim(decodePolyline(l.legGeometry.points, l.legGeometry.precision ?? 6)));
+    return { min: Math.max(1, Math.round(best.duration / 60)), lines: [...new Set(lines)], paths };
   }
 };
 
@@ -1428,7 +1511,7 @@ async function saveForm() {
 document.addEventListener('click', async e => {
   const dayBtn = e.target.closest('#rail [data-day]');
   if (dayBtn) {
-    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null;
+    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null; S.focusLeg = null;
     render(); Map_.fit(); return;
   }
 
@@ -1451,6 +1534,23 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#tobook')) { S.toBookOnly = !S.toBookOnly; S.selected = null; render(); Map_.fit(); return; }
 
   if (e.target.closest('#budget')) { openBudget(); return; }
+
+  // Tap a leg: the map shows walk, car and subway for it. Tap it again, or
+  // the key's close button, to go back to the day's walking route.
+  const legBtn = e.target.closest('.leg[data-from]');
+  if (legBtn) {
+    const a = S.events.find(x => x.id === legBtn.dataset.from), b = S.events.find(x => x.id === legBtn.dataset.to);
+    const same = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
+    S.focusLeg = same ? null : [a.id, b.id];
+    renderList();
+    Map_.drawRoutes();
+    if (S.focusLeg) {
+      Map_.fitLeg(a, b);
+      $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else Map_.fit();
+    return;
+  }
+  if (e.target.closest('#legKeyClose')) { S.focusLeg = null; renderList(); Map_.drawRoutes(); Map_.fit(); return; }
 
   const btab = e.target.closest('[data-btab]');
   if (btab) { openBudget(btab.dataset.btab); return; }

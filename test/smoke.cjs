@@ -78,7 +78,7 @@ export function createClient(){
 const ML_STUB = `
 window.maplibregl = {
   Map: class {
-    constructor(o){ this._h = {}; this._src = {}; this._z = 12;
+    constructor(o){ this._h = {}; this._src = {}; this._z = 12; window.__map = this;
       setTimeout(() => (this._h.load || []).forEach(f => f()), 10); }
     on(e, f){ (this._h[e] = this._h[e] || []).push(f); }
     addControl(){} addSource(id, s){ this._src[id] = { setData(d){ this.data = d; } }; }
@@ -119,13 +119,13 @@ window.maplibregl = {
       return route.fulfill({ contentType: type, body: fs.readFileSync(path, 'utf8') });
     }
     if (url.includes('routing.openstreetmap.de/routed-foot')) return route.fulfill({ contentType: 'application/json',
-      body: JSON.stringify({ routes: [{ distance: 2080, duration: 1680 }] }) });
+      body: JSON.stringify({ routes: [{ distance: 2080, duration: 1680, geometry: { coordinates: [[-73.983, 40.7645], [-73.9855, 40.7700], [-73.9810, 40.7760], [-73.9797, 40.7813]] } }] }) });
     if (url.includes('routing.openstreetmap.de/routed-car')) return route.fulfill({ contentType: 'application/json',
-      body: JSON.stringify({ routes: [{ distance: 2400, duration: 240 }] }) });
+      body: JSON.stringify({ routes: [{ distance: 2400, duration: 240, geometry: { coordinates: [[-73.983, 40.7645], [-73.9870, 40.7720], [-73.9797, 40.7813]] } }] }) });
     if (url.includes('api.transitous.org')) return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify({ itineraries: [
         { duration: 1140, legs: [{ mode: 'WALK' }, { mode: 'BUS', routeShortName: 'M7' }, { mode: 'WALK' }] },
-        { duration: 960, legs: [{ mode: 'WALK' }, { mode: 'SUBWAY', routeShortName: 'D' }, { mode: 'SUBWAY', routeShortName: '1' }, { mode: 'WALK' }] }] }) });
+        { duration: 960, legs: [{ mode: 'WALK' }, { mode: 'SUBWAY', routeShortName: 'D', legGeometry: { points: '_p~iF~ps|U_ulLnnqC', precision: 5 } }, { mode: 'SUBWAY', routeShortName: '1' }, { mode: 'WALK' }] }] }) });
     if (url.includes('photon.komoot.io')) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: [
         { properties: { name: 'Quality Italian', housenumber: '57', street: 'West 57th Street' }, geometry: { coordinates: [-73.97677, 40.76457] } }] }) }); }
@@ -503,6 +503,25 @@ window.maplibregl = {
   ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
   ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
   ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
+
+  console.log('\n— ROUTES ON THE MAP —');
+  const lineLen = id => q.evaluate(i => { const d = window.__map._src[i].data; return d.features.map(f => f.geometry.coordinates.length); }, id);
+  ok('the map draws the walking route along streets, not a straight line', JSON.stringify(await lineLen('route')) === '[4]', JSON.stringify(await lineLen('route')));
+  ok('no leg detail until a leg is tapped', (await lineLen('legcar')).length === 0 && await q.locator('#legKey[hidden]').count() === 1);
+  await q.locator('.leg').first().click();
+  await q.waitForTimeout(300);
+  ok('tapping a leg shows walk, car and subway with a key',
+     (await lineLen('legwalk')).length === 1 && (await lineLen('legcar')).length === 1 && (await lineLen('legsub')).length === 1 &&
+     await q.locator('#legKey:not([hidden])').count() === 1, JSON.stringify([await lineLen('legwalk'), await lineLen('legcar'), await lineLen('legsub')]));
+  ok('the day route steps aside for the tapped leg', (await lineLen('route')).length === 0);
+  await q.locator('#legKeyClose').click();
+  await q.waitForTimeout(300);
+  ok('closing the key brings the day route back', JSON.stringify(await lineLen('route')) === '[4]' && await q.locator('#legKey[hidden]').count() === 1);
+  // Reordering: move the second stop before the first and the legs follow.
+  await q.evaluate(async () => { const r = window.__rows.find(x => x.id === 'leg-b'); r.time = '14:00'; await window.Data.load(); });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(1500);
+  ok('reordered stops are re-paired and routed', await q.locator('.leg[data-from="leg-b"][data-to="leg-a"]').count() === 1);
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
