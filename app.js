@@ -1,12 +1,20 @@
 /* ============================================================
    NYC Trip Dashboard
    - data + realtime sync : Supabase
-   - auth                 : Supabase magic link, allow-listed emails
+   - auth                 : Supabase emailed code, allow-listed emails
    - map                  : MapLibre GL JS + OpenFreeMap tiles
    - geocoding            : Nominatim (OpenStreetMap), rate limited
    ============================================================ */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/+esm';
+
+/* An emailed sign-in link that has expired, or was already used, lands back
+   here with the reason in the URL. Note it and strip it before the Supabase
+   client starts: the client reads those parameters as a failed sign-in and
+   deletes whatever session this browser already holds, so a stale link would
+   sign out a phone that was signed in. The page takes no other parameters. */
+const LINK_FAILED = /[?#&]error_description=/.test(location.search + location.hash);
+if (LINK_FAILED) history.replaceState(null, '', location.pathname);
 
 const CFG = window.TRIP_CONFIG || {};
 const sb = createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
@@ -27,6 +35,7 @@ const CATS = [
   { id: 'lunch',     name: 'Lunch',       color: '#78894A' },
   { id: 'dinner',    name: 'Dinner',      color: '#A93B2E' },
   { id: 'coffee',    name: 'Coffee',      color: '#C2796F' },
+  { id: 'snacks',    name: 'Snacks',      color: '#64305A' },
   { id: 'sights',    name: 'Sightseeing', color: '#2E7D77' },
   { id: 'show',      name: 'Show',        color: '#D4622A' },
   { id: 'travel',    name: 'Travel',      color: '#4A6B8A' },
@@ -100,6 +109,19 @@ function legText(m) {
   return dist + ' · about ' + blocks + ' block' + (blocks === 1 ? '' : 's') + ' · ' + mins + ' min walk';
 }
 function hasLoc(e) { return Number.isFinite(e.lat) && Number.isFinite(e.lng); }
+
+/* Apple Maps links. On an iPhone these open the Maps app itself, from Safari
+   and from the Home Screen app alike; anywhere else they open Maps on the web.
+   An address is handed over as a search, because the field also holds
+   neighbourhoods and place names. sll biases that search toward Midtown, so
+   "205 E Houston St" finds the one in Manhattan wherever the phone is. */
+function mapsSearchUrl(address) {
+  return 'https://maps.apple.com/?q=' + encodeURIComponent(address) + '&sll=40.7580,-73.9855';
+}
+// Directions go to the pin, not the address text: hand-typed coordinates win.
+function mapsDirectionsUrl(e) {
+  return 'https://maps.apple.com/?daddr=' + e.lat + ',' + e.lng;
+}
 
 /* ---------- row mapping: database snake_case <-> app camelCase ---------- */
 function fromRow(r) {
@@ -639,16 +661,20 @@ function renderList() {
       ? `<span class="tag ${e.booked ? 'solid' : ''}" style="${e.booked ? 'background:var(--olive)' : 'color:var(--brick)'}">${e.booked ? 'Booked' : 'Not booked'}</span>`
       : '';
 
-    html += `<button class="stop" data-open="${e.id}">
+    /* The title is the button and styles.css stretches it over the whole
+       row, so tapping anywhere still opens the stop. The row itself cannot be
+       the button any more: the address is a link, and a link may not sit
+       inside a button. */
+    html += `<div class="stop">
       <div class="marker${placed ? '' : ' hollow'}" style="background:${c.color}">${num}</div>
       <div class="card">
         <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
-        <h3>${esc(e.title || 'Untitled stop')}</h3>
-        ${e.address ? `<div class="where">${esc(e.address)}</div>` : ''}
+        <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
+        ${e.address ? `<a class="where" href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag" style="color:${c.color}">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag" style="color:var(--ink-soft)">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
-    </button>`;
+    </div>`;
 
     // Walking legs only make sense between consecutive stops on the SAME day.
     // In the whole-trip view the next stop may be tomorrow morning, which is
@@ -867,10 +893,10 @@ function openDetail(id) {
          </div>`
       : `<div class="nocost">No cost recorded — add one when you know it</div>`}
     <dl class="d-rows">
-      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd>${esc(e.address)}</dd></div>` : ''}
+      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd><a href="${esc(mapsSearchUrl(e.address))}" target="_blank" rel="noopener">${esc(e.address)}</a></dd></div>` : ''}
       <div class="d-row"><dt>LOCATION</dt><dd>${placed
         ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span style="color:var(--ink-soft);font-size:12.5px">matched: ${esc(e.geoResolved)}</span>` : ''}
-           <br><a href="https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}" target="_blank" rel="noopener">Directions</a>`
+           <br><a href="${mapsDirectionsUrl(e)}" target="_blank" rel="noopener">Directions</a>`
         : (e.geoStatus === 'pending'
             ? `<span style="color:var(--stone)">Still looking…</span>`
             : e.geoStatus === 'cleared'
@@ -1275,6 +1301,12 @@ document.addEventListener('keydown', e => {
 
 /* ============================================================
    AUTH GATE
+   Sign-in is by typing the code from the email, not by following its link.
+   A link signs in whichever browser happens to open it. On a phone that is
+   the mail app's built-in browser rather than Safari, and never the Home
+   Screen app, which is a third browser with no address bar to paste into.
+   A typed code signs in the browser it is typed into. The link in the same
+   email still works wherever it does open in the right place.
    ============================================================ */
 function showGate(msg) {
   $('#gate').hidden = false;
@@ -1286,7 +1318,39 @@ function showApp() {
   $('#app').hidden = false;
 }
 
-async function sendMagicLink(email) {
+/* Reading the email means leaving this page, and iOS may reload it on the way
+   back, the Home Screen app especially. Remembering that a code is on its way
+   lets the reload land on the code step. Without it the page comes back
+   asking for an email, and a second email voids the first code and spends one
+   of the few sign-in emails Supabase sends per hour. */
+const PENDING_KEY = 'nyc-trip-awaiting-code';
+const PENDING_MS = 60 * 60 * 1000;   // Supabase's default code lifetime
+function pendingEmail() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_KEY));
+    return p && Date.now() - p.at < PENDING_MS ? p.email : '';
+  } catch (err) { return ''; }
+}
+function setPending(email) {
+  try {
+    if (email) localStorage.setItem(PENDING_KEY, JSON.stringify({ email, at: Date.now() }));
+    else localStorage.removeItem(PENDING_KEY);
+  } catch (err) { /* no storage: the code step just does not survive a reload */ }
+}
+
+let gateEmail = '';
+function gateStep(step) {
+  $('#gateForm').hidden = step !== 'email';
+  $('#gateCodeForm').hidden = step !== 'code';
+}
+function awaitCode(email, msg) {
+  gateEmail = email;
+  gateStep('code');
+  $('#gateMsg').textContent = msg;
+  $('#gateCode').focus();
+}
+
+async function sendCode(email) {
   const btn = $('#gateSend');
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -1295,9 +1359,44 @@ async function sendMagicLink(email) {
     options: { emailRedirectTo: window.location.href.split('#')[0] }
   });
   btn.disabled = false;
-  btn.textContent = 'Send me a link';
-  if (error) { $('#gateMsg').textContent = error.message; return; }
-  $('#gateMsg').textContent = 'Check ' + email + ' — the link signs you straight in.';
+  btn.textContent = 'Send me a code';
+  if (error) {
+    $('#gateMsg').textContent = /rate limit/i.test(error.message)
+      ? 'Supabase only sends a few sign-in emails an hour, and that limit is used up. Wait an hour — or tap “I already have a code” and use the newest email.'
+      : error.message;
+    return;
+  }
+  setPending(email);
+  awaitCode(email, 'Check ' + email + ' for the code.');
+}
+
+async function verifyCode(entered) {
+  /* The field takes either thing the email offers. A pasted sign-in link
+     carries its one-time token in the query string; redeeming it here signs
+     in this browser instead of whichever one would have opened the link.
+     Decoded first, because a mail app may hand the link over wrapped inside
+     a redirect of its own. */
+  let pasted = entered;
+  try { pasted = decodeURIComponent(entered); } catch (err) { /* not encoded */ }
+  const link = pasted.match(/[?&]token=([\w-]+)/);
+  const code = entered.replace(/\D/g, '');
+  if (!link && !code) { $('#gateMsg').textContent = 'Type the code from the email.'; return; }
+
+  const btn = $('#gateVerify');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  const { error } = await sb.auth.verifyOtp(link
+    ? { token_hash: link[1], type: 'email' }
+    : { email: gateEmail, token: code, type: 'email' });
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    $('#gateMsg').textContent = /expired|invalid/i.test(error.message)
+      ? 'That did not work — it has expired, or a newer email replaced it. Use the newest email, or start over.'
+      : error.message;
+    return;
+  }
+  location.reload();
 }
 
 /* Wired in both the signed-out path and the unreachable-database path, so the
@@ -1309,7 +1408,24 @@ function wireGate() {
   $('#gateForm').addEventListener('submit', ev => {
     ev.preventDefault();
     const email = $('#gateEmail').value.trim();
-    if (email) sendMagicLink(email);
+    if (email) sendCode(email);
+  });
+  // For the email already in the inbox. Matters most when the hourly limit
+  // refuses to send another.
+  $('#gateHaveCode').addEventListener('click', () => {
+    if (!$('#gateForm').reportValidity()) return;
+    const email = $('#gateEmail').value.trim();
+    setPending(email);
+    awaitCode(email, 'Type the code from the newest email.');
+  });
+  $('#gateCodeForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    verifyCode($('#gateCode').value);
+  });
+  $('#gateRestart').addEventListener('click', () => {
+    setPending('');
+    gateStep('email');
+    $('#gateMsg').textContent = '';
   });
 }
 
@@ -1331,10 +1447,19 @@ async function boot() {
   S.session = session;
 
   if (!session) {
-    showGate('');
     wireGate();
+    if (LINK_FAILED) {
+      // Whatever code was being waited for is in doubt too. Start clean.
+      setPending('');
+      showGate('That sign-in link has expired or was already used. Send a new code, and type it in here rather than tapping the link.');
+    } else {
+      showGate('');
+      const waiting = pendingEmail();
+      if (waiting) awaitCode(waiting, 'Type the code sent to ' + waiting + '.');
+    }
     return;
   }
+  setPending('');
 
   showApp();
   Map_.init();
