@@ -81,7 +81,7 @@ app.js                  the whole application, ES module
 config.example.js       template — copy to config.js with real values
 supabase/schema.sql     tables, RLS policies, realtime, heartbeat. Run once.
 .github/workflows/
-  deploy.yml            builds config.js from secrets, publishes to Pages
+  deploy.yml            builds config.js from secrets, stamps versions, writes version.json, publishes
   keepalive.yml         pings Supabase every 3 days so it never pauses
 private/                gitignored
   itinerary.json        the real 31 stops
@@ -171,6 +171,12 @@ sheet/detail/form → global event handling → auth gate → boot.
   in walk, car and subway for that leg with a key (`S.focusLeg`,
   `Map_.drawRoutes`). Legs are derived from the current stops, so edits,
   reorders and new stops re-route. Static picture, not navigation.
+- **The open app picks up new deploys itself.** GitHub Pages lets a phone
+  reuse the page for 10 minutes, even across closing the Home Screen app.
+  The deploy writes `version.json`; on open and on return to the front (at
+  most every 5 minutes) `checkForUpdate` compares it with its own `?v=` and,
+  if newer, reloads at `?v=<new>`, an address the phone has not cached. Never
+  mid-edit, once per version (so a stale page cannot loop), never locally.
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -222,7 +228,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, and the desktop layout. 113 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, and the desktop layout. 115 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

@@ -47,6 +47,9 @@ jobs:
           sed -i "s|href=\"styles.css\"|href=\"styles.css?v=$V\"|" index.html
           sed -i "s|src=\"app.js\"|src=\"app.js?v=$V\"|" index.html
           grep -E 'styles\.css|app\.js' index.html
+          # The open app compares its own version with this file and reloads
+          # itself when a newer deploy is out. See checkForUpdate in app.js.
+          printf '{"v":"%s"}\n' "$V" > version.json
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
