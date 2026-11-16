@@ -1154,8 +1154,11 @@ function openDetail(id) {
     ${(per || totalCost(e) || extras.length)
       ? `<div class="costgrid">
            <div><span>PER PERSON</span><b>${money(per)}</b></div>
-           <div><span>TOTAL · ${Number(e.people) || 0} PEOPLE</span><b>${money(totalCost(e))}</b></div>
-         </div>`
+           <div><span>TOTAL${extras.length ? ' · WITH EXTRAS' : ' · ' + (Number(e.people) || 0) + ' PEOPLE'}</span><b>${money(totalCost(e))}</b></div>
+         </div>
+         ${extras.length ? `<div class="costmath">${money(per)} × ${Number(e.people) || 0} people = ${money(per * (Number(e.people) || 0))}`
+           + extras.map(x => ` + ${esc(x.label || 'extra')} ${money(x.amount)}`).join('')
+           + ` = <b>${money(totalCost(e))}</b></div>` : ''}`
       : `<div class="nocost">No cost recorded — add one when you know it</div>`}
     <dl class="d-rows">
       ${e.mapKind === 'place' && e.placeName ? `<div class="d-row"><dt>PLACE</dt><dd><a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.placeName)}</a></dd></div>` : ''}

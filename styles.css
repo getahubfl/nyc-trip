@@ -303,6 +303,10 @@ button.leg.on{background:var(--fill)}
 .costgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 16px}
 .costgrid div{background:var(--fill);border-radius:var(--r);padding:12px 14px}
 .costgrid b{display:block;font-size:26px;font-weight:700;line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+/* The sum spelled out when there are extras, so a total that includes
+   them is never mistaken for one that does not. */
+.costmath{margin:-6px 0 16px;font-size:13.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.costmath b{color:var(--ink)}
 .nocost{margin:0 0 16px;padding:12px 14px;border-radius:var(--r);background:var(--fill);font-size:14px;color:var(--ink-2)}
 
 /* ---------- budget sheet ---------- */
