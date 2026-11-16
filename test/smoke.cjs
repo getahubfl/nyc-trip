@@ -115,7 +115,8 @@ window.maplibregl = {
       const f = url.replace('http://local/', '') || 'index.html';
       const path = ROOT + '/' + f.split('?')[0];
       if (!fs.existsSync(path)) return route.fulfill({ status: 404, body: '' });
-      const type = f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? 'text/javascript' : 'text/html';
+      const p0 = f.split('?')[0];
+      const type = p0.endsWith('.css') ? 'text/css' : p0.endsWith('.js') ? 'text/javascript' : p0.endsWith('.json') ? 'application/json' : 'text/html';
       return route.fulfill({ contentType: type, body: fs.readFileSync(path, 'utf8') });
     }
     if (url.includes('routing.openstreetmap.de/routed-foot')) return route.fulfill({ contentType: 'application/json',
@@ -530,6 +531,22 @@ window.maplibregl = {
   await q.locator('#rail [data-day="2026-11-25"]').click();
   await q.waitForTimeout(1500);
   ok('reordered stops are re-paired and routed', await q.locator('.leg[data-from="leg-b"][data-to="leg-a"]').count() === 1);
+
+  console.log('\n— PICKING UP A NEW DEPLOY —');
+  // A page built as version aaaa1111, with version.json saying bbbb2222 is out.
+  const u = await ctx.newPage();
+  await u.route('http://local/index.html*', r => r.fulfill({ contentType: 'text/html',
+    body: fs.readFileSync(ROOT + '/index.html', 'utf8').replace('src="app.js"', 'src="app.js?v=aaaa1111"') }));
+  await u.route('http://local/version.json*', r => r.fulfill({ contentType: 'application/json', body: '{"v":"bbbb2222"}' }));
+  await u.goto('http://local/index.html');
+  await u.waitForTimeout(1500);
+  ok('an out-of-date page reloads itself at the new version', u.url().includes('?v=bbbb2222'), u.url());
+  // The cached page is served again, still old: it must not reload a second time.
+  const before = u.url();
+  await u.reload();
+  await u.waitForTimeout(1500);
+  ok('it does not keep reloading if the new version does not arrive', u.url() === before, u.url());
+  await u.close();
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });

@@ -2036,6 +2036,35 @@ document.addEventListener('DOMContentLoaded', () => {
   boot().finally(() => { booted = true; });
 });
 
+/* ---------- picking up a new deploy ----------
+   GitHub Pages lets a phone reuse the page for 10 minutes, and closing the
+   Home Screen app does not clear that, so a deploy could take that long to
+   appear. Each deploy writes version.json; this build knows its own version
+   from the ?v= on its own URL. When the app opens or comes back to the front
+   (at most once every 5 minutes) it asks for version.json past the cache, and
+   if a newer deploy is out it reloads at a new address, which the phone has
+   not cached. It never reloads mid-edit, and tries each version once, so a
+   stale page cannot loop. A local copy (no ?v=) never checks. */
+const BUILD = new URL(import.meta.url).searchParams.get('v');
+const UPDATE_TRIED = 'nyc-trip-update-tried';
+let lastUpdateCheck = 0;
+async function checkForUpdate() {
+  if (!BUILD || Date.now() - lastUpdateCheck < 5 * 60 * 1000) return;
+  lastUpdateCheck = Date.now();
+  let latest;
+  try {
+    const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    latest = (await res.json()).v;
+  } catch (err) { return; }   // offline, or no version file yet: carry on
+  if (!latest || latest === BUILD) return;
+  if (sheetMode === 'form') { lastUpdateCheck = 0; return; }   // not mid-edit
+  if (unstash(sessionStorage, UPDATE_TRIED) === latest) return;
+  stash(sessionStorage, UPDATE_TRIED, latest);
+  location.replace(location.pathname + '?v=' + latest);
+}
+checkForUpdate();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+
 /* exposed for the console and for Claude Code's tests */
 window.S = S;
 window.Data = Data;
