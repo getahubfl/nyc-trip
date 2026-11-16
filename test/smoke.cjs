@@ -399,6 +399,10 @@ window.maplibregl = {
   ok('cost grid shown for a priced stop', await q.locator('.costgrid b').count() === 2);
   const cg = await q.locator('.costgrid b').allTextContents();
   ok('per-person and total correct', cg[0] === '$32' && cg[1] === '$146', JSON.stringify(cg));
+  ok('the sum is spelled out with the extras', (await q.locator('.costmath').innerText()).replace(/\s+/g, ' ') === '$32 × 4 people = $128 + Egg creams $18 = $146',
+     await q.locator('.costmath').innerText());
+  ok('the trip budget counts the extras', (await q.locator('#budgetN').innerText()) === '$146', await q.locator('#budgetN').innerText());
+  ok('the total is labelled as including extras', (await q.locator('.costgrid span').nth(1).innerText()).includes('WITH EXTRAS'));
   ok('reservation bar reads Booked', (await q.locator('.resbar h4').innerText()).includes('Booked'));
   ok('address opens in Apple Maps', await q.locator('.d-row a[href^="https://maps.apple.com/?q=205%20E%20Houston%20St"]').count() === 1);
   ok('directions open in Apple Maps', await q.locator('.d-row a[href="https://maps.apple.com/?daddr=40.7223,-73.9874"]').count() === 1);
