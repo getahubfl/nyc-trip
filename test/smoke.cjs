@@ -408,6 +408,22 @@ window.maplibregl = {
   ok('address opens in Apple Maps', await q.locator('.d-row a[href^="https://maps.apple.com/?q=205%20E%20Houston%20St"]').count() === 1);
   ok('directions open in Apple Maps', await q.locator('.d-row a[href="https://maps.apple.com/?daddr=40.7223,-73.9874"]').count() === 1);
 
+  console.log('\n— BUDGET BY CATEGORY —');
+  await q.locator('#closeSheet').click();
+  await q.waitForTimeout(350);
+  await q.locator('#budget').click();
+  await q.waitForTimeout(400);
+  await q.locator('[data-btab="cat"]').click();
+  await q.waitForTimeout(200);
+  ok('categories start closed', await q.locator('.bcat-items').count() === 0);
+  await q.locator('[data-bcat="lunch"]').click();
+  await q.waitForTimeout(200);
+  const inside = await q.locator('.bcat.open .bitem').allInnerTexts();
+  ok('a category opens to the stops behind its total', inside.length === 1 && inside[0].includes("Katz's") && inside[0].includes('$146'), JSON.stringify(inside));
+  await q.locator('.bcat.open .bitem').first().click();
+  await q.waitForTimeout(400);
+  ok('a stop in the list opens that stop', (await q.locator('#sheetTitle').innerText()).startsWith('Wed'));
+
   console.log('\n— TOGGLE BOOKED —');
   await q.locator('[data-toggleres]').click();
   await q.waitForTimeout(500);
