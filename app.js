@@ -648,10 +648,13 @@ function budgetByCat() {
   return CATS.map(c => {
     const evs = S.events.filter(e => e.category === c.id);
     return {
+      id: c.id,
       label: c.name,
       color: c.color,
       total: evs.reduce((s, e) => s + totalCost(e), 0),
-      count: evs.filter(e => totalCost(e) > 0).length
+      count: evs.filter(e => totalCost(e) > 0).length,
+      // What makes up the total, largest first.
+      stops: evs.filter(e => totalCost(e) > 0).sort((a, b) => totalCost(b) - totalCost(a))
     };
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
 }
@@ -1004,6 +1007,7 @@ const BUDGET_TABS = [
   { id: 'big',   name: 'Largest' }
 ];
 let budgetTab = 'total';
+const budgetOpenCats = new Set();
 
 /* A labelled proportional bar. max is passed in so every row in a tab is
    scaled against the same peak rather than against itself. */
@@ -1053,30 +1057,43 @@ function budgetBodyHTML() {
     const rows = budgetByCat();
     const max = Math.max(...rows.map(r => r.total), 0);
     if (!rows.length) return `<div class="empty"><h3>No costs yet</h3><p>Add a cost to any stop and it will show up here.</p></div>`;
-    return rows.map(r => budgetBar(
-      r.label, `${r.count} stop${r.count === 1 ? '' : 's'}`, r.total, max, r.color
-    )).join('');
+    // Each category opens to the stops behind its total. Which ones are open
+    // survives a live update from the other phone.
+    return rows.map(r => {
+      const open = budgetOpenCats.has(r.id);
+      return `<div class="bcat${open ? ' open' : ''}">
+        <button class="bcat-head" data-bcat="${r.id}" aria-expanded="${open}">
+          ${budgetBar(r.label, `${r.count} stop${r.count === 1 ? '' : 's'}`, r.total, max, r.color)}
+          <i class="bcat-chev" aria-hidden="true"></i>
+        </button>
+        ${open ? `<div class="bcat-items">${r.stops.map(e => budgetItem(e, false)).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
   }
 
   // 'big' — every priced stop, most expensive first, tap through to the stop.
   const ranked = budgetRanked();
   if (!ranked.length) return `<div class="empty"><h3>No costs yet</h3><p>Add a cost to any stop and it will show up here.</p></div>`;
-  return ranked.map(e => {
-    const c = CAT[e.category] || CAT.other;
-    const d = DAYS.find(x => x.id === e.day);
-    const out = e.needsReservation && !e.booked;
-    return `<button class="bitem" data-open="${e.id}">
-      <div class="bitem-main">
-        <h4>${esc(e.title || 'Untitled stop')}</h4>
-        <div class="tags">
-          <span class="tag">${d ? d.dow + ' ' + d.n : ''}</span>
-          <span class="tag">${c.name}</span>
-          ${out ? `<span class="tag unbooked">Not booked</span>` : ''}
-        </div>
+  return ranked.map(e => budgetItem(e, true)).join('');
+}
+
+// One priced stop, tapping through to it. The category tag is left off
+// inside a category, where it would only repeat the heading.
+function budgetItem(e, showCat) {
+  const c = CAT[e.category] || CAT.other;
+  const d = DAYS.find(x => x.id === e.day);
+  const out = e.needsReservation && !e.booked;
+  return `<button class="bitem" data-open="${e.id}">
+    <div class="bitem-main">
+      <h4>${esc(e.title || 'Untitled stop')}</h4>
+      <div class="tags">
+        <span class="tag">${d ? d.dow + ' ' + d.n : ''}</span>
+        ${showCat ? `<span class="tag">${c.name}</span>` : ''}
+        ${out ? `<span class="tag unbooked">Not booked</span>` : ''}
       </div>
-      <b>${money(totalCost(e))}</b>
-    </button>`;
-  }).join('');
+    </div>
+    <b>${money(totalCost(e))}</b>
+  </button>`;
 }
 
 function openBudget(tab) {
@@ -1576,6 +1593,14 @@ document.addEventListener('click', async e => {
     return;
   }
   if (e.target.closest('#legKeyClose')) { S.focusLeg = null; renderList(); Map_.drawRoutes(); Map_.fit(); return; }
+
+  const bcat = e.target.closest('[data-bcat]');
+  if (bcat) {
+    const id = bcat.dataset.bcat;
+    if (budgetOpenCats.has(id)) budgetOpenCats.delete(id); else budgetOpenCats.add(id);
+    refreshBudgetIfOpen();
+    return;
+  }
 
   const btab = e.target.closest('[data-btab]');
   if (btab) { openBudget(btab.dataset.btab); return; }
