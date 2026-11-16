@@ -253,3 +253,27 @@ its saved sign-in, and Apple Maps opening. Those need a phone.
   fix it and is probably the single highest-value addition before the trip.
 - Phase 2 originally imagined shared editing; Supabase Realtime already
   delivers it, so that item is closed.
+
+## Feature backlog (agreed 16 Nov 2026, not started)
+
+Navigation stays with Apple Maps; none of these replace it. Paris's picks
+for before the trip were 3, 4, 2, 1, in that order.
+
+1. **Offline** — keep the trip on the phone and queue edits made without
+   signal (service worker + write queue). Medium.
+2. **Today mode** — on trip days open on today, highlight the next stop,
+   "leave by 2:40 to walk there for 3:00" from the leg times. Small–medium.
+3. **Too-tight warnings** — amber/red on a leg when its travel time does not
+   fit the gap between the two stops (e.g. 9/11 Memorial → timeshare). Data
+   already there. Small.
+4. **Apple Calendar export** — .ics of the trip with an alert per stop, for
+   real reminders without push. Small.
+5. **Daily weather** on the day rail (Open-Meteo: free, no key). Small.
+6. **Tickets on a stop** — attach a photo/PDF/QR (Supabase Storage). Medium.
+7. **Who's going** — tag stops with Paris / Megan / Mom / Dad; split costs by
+   person in the budget. Medium.
+8. **Planned vs actually spent** per stop and in the budget. Small.
+9. **Holiday hours check** — warn when a stop may be closed at its time,
+   from OpenStreetMap opening hours; patchy, so a hint only. Medium.
+10. **Photos per stop** after the trip — a trip journal, and a first step
+    toward turning this into a larger platform later.
