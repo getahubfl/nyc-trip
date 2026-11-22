@@ -589,6 +589,29 @@ window.maplibregl = {
   await q.evaluate(() => window.openDetail('n1'));
   await q.waitForTimeout(400);
   ok('and shown that way', await q.locator('dd.note b').count() === 1 && await q.locator('dd.note li').count() === 2);
+  // Highlight in a pin-family colour.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(400);
+  await q.locator('#f-notes').click();
+  await q.keyboard.press('ControlOrMeta+End');
+  await q.keyboard.press('Enter');
+  await q.keyboard.type('Pink bit');
+  for (let k = 0; k < 'Pink bit'.length; k++) await q.keyboard.press('Shift+ArrowLeft');
+  await q.locator('[data-fmt="hilite"]').click();
+  { const n = await q.locator('#f-hlbar:not([hidden]) [data-hl]').count(); ok('highlight opens a row of colours', n === 7, n); }
+  await q.locator('[data-hl="pink"]').click();
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  ok('the highlight colour is kept', /<mark class="hl-pink">Pink bit<\/mark>/.test(await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes)),
+     await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes));
+  // The form has been opened many times by now; a tap must still act once.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(300);
+  const ex0 = await q.locator('#f-extras .extra').count();
+  await q.locator('#f-addextra').click();
+  ok('a tap acts once however often the form has opened', await q.locator('#f-extras .extra').count() === ex0 + 1);
+  await q.locator('[data-cancel]').click();
+  await q.waitForTimeout(300);
   // Pasted or stored markup is reduced to the allowed tags, no attributes.
   await q.evaluate(async () => {
     const r = window.__rows.find(x => x.id === 'n1');

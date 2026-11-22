@@ -1009,13 +1009,12 @@ function partHeader(dayId, p) {
 const partOf = e => e.time ? PARTS.find(p => +e.time.slice(0, 2) < p.to) : null;
 // The close of a part of the day: how many stops, and from the first start
 // to the last finish.
+// The close of a part of the day: the stops' line ends in a terminus ring,
+// as a line ends on a subway strip map. An empty part says so instead.
 function partEnd(stops) {
-  if (!stops.length) return `<div class="part-end"><span>Nothing planned</span></div>`;
-  const mins = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
-  const start = mins(stops[0].time);
-  const end = Math.max(...stops.map(e => mins(e.time) + (Number(e.durationMin) || 0)));
-  const clock = m => fmtTime(String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
-  return `<div class="part-end"><span>${stops.length} stop${stops.length === 1 ? '' : 's'} · ${clock(start)}–${clock(end)}</span></div>`;
+  return stops.length
+    ? `<div class="part-end" aria-hidden="true"><i></i></div>`
+    : `<div class="part-end empty"><i></i><span>Nothing planned</span></div>`;
 }
 
 function render() {
@@ -1272,6 +1271,24 @@ function openDetail(id) {
    links or styles into the app. Notes written before this, as plain text,
    are shown with their line breaks kept. */
 const NOTE_TAGS = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', MARK: 'mark', UL: 'ul', OL: 'ol', LI: 'li', BR: 'br', DIV: 'div', P: 'div' };
+// Highlight colours: lighter tints of the pin pastels. A highlight is kept
+// as <mark class="hl-NAME">, the one attribute the notes allow.
+const HILITES = [
+  { id: 'butter',   color: '#FCEB9F' },
+  { id: 'pink',     color: '#FBC9DA' },
+  { id: 'mint',     color: '#C2EDD2' },
+  { id: 'sky',      color: '#C6DBFA' },
+  { id: 'lavender', color: '#E6DAFD' },
+  { id: 'peach',    color: '#FFDCC2' }
+];
+const rgbOf = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(',');
+function hiliteName(style) {
+  const m = style.match(/background(?:-color)?:\s*(#[0-9a-f]{6}|rgba?\(([^)]*)\))/i);
+  if (!m) return 'butter';
+  const rgb = m[2] ? m[2].split(',').slice(0, 3).map(x => parseInt(x, 10)).join(',') : rgbOf(m[1]);
+  const hit = HILITES.find(h => rgbOf(h.color) === rgb);
+  return hit ? hit.id : 'butter';
+}
 const isRichNote = t => /<(b|i|mark|ul|ol|li|br|div)\b/i.test(t || '');
 function cleanNote(html) {
   const doc = new DOMParser().parseFromString(`<body>${html || ''}</body>`, 'text/html');
@@ -1281,7 +1298,12 @@ function cleanNote(html) {
     const inner = walk(n);
     const st = (n.getAttribute('style') || '').toLowerCase();
     // Safari's highlight and bold arrive as styled spans.
-    if (n.tagName === 'SPAN' && /background/.test(st) && !/transparent|initial|inherit/.test(st)) return `<mark>${inner}</mark>`;
+    if (n.tagName === 'SPAN' && /background/.test(st) && !/transparent|initial|inherit|rgba\([^)]*,\s*0\)/.test(st))
+      return `<mark class="hl-${hiliteName(st)}">${inner}</mark>`;
+    if (n.tagName === 'MARK') {
+      const c = (n.getAttribute('class') || '').match(/\bhl-(\w+)/);
+      return `<mark class="hl-${c && HILITES.some(h => h.id === c[1]) ? c[1] : 'butter'}">${inner}</mark>`;
+    }
     if (n.tagName === 'SPAN' && /font-weight:\s*(bold|[6-9]00)/.test(st)) return `<b>${inner}</b>`;
     const tag = NOTE_TAGS[n.tagName];
     if (!tag) return inner;                    // unknown element: keep its text only
@@ -1443,10 +1465,14 @@ function formHTML() {
     <div class="notebar" role="toolbar" aria-label="Note formatting">
       <button type="button" data-fmt="bold" aria-label="Bold"><b>B</b></button>
       <button type="button" data-fmt="italic" aria-label="Italic"><i>I</i></button>
-      <button type="button" data-fmt="hilite" aria-label="Highlight"><mark>H</mark></button>
-      <button type="button" data-fmt="insertUnorderedList" aria-label="Bulleted list">•&#8201;List</button>
-      <button type="button" data-fmt="insertOrderedList" aria-label="Numbered list">1.&#8201;List</button>
+      <button type="button" data-fmt="hilite" aria-label="Highlight" aria-expanded="false"><mark class="hl-butter">H</mark></button>
+      <button type="button" data-fmt="insertUnorderedList" aria-label="Bulleted list"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="7" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="5" cy="17" r="1.8"/><path d="M10 7h10M10 12h10M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button type="button" data-fmt="insertOrderedList" aria-label="Numbered list"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="2.5" y="9.5" font-size="7" font-weight="700" font-family="Helvetica, Arial, sans-serif">1</text><text x="2.5" y="19.5" font-size="7" font-weight="700" font-family="Helvetica, Arial, sans-serif">2</text><path d="M10 7h10M10 12h10M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button type="button" data-fmt="removeFormat" aria-label="Clear formatting">Clear</button>
+    </div>
+    <div class="hlbar" id="f-hlbar" hidden>${HILITES.map(h =>
+      `<button type="button" data-fmt="hl" data-hl="${h.id}" aria-label="Highlight ${h.id}" style="background:${h.color}"></button>`).join('')}
+      <button type="button" data-fmt="hl" data-hl="none" aria-label="Remove highlight" class="hl-none">None</button>
     </div>
     <div id="f-notes" class="note noteedit" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="f-notes-label"
       data-placeholder="Anything worth remembering">${noteHTML(f.notes)}</div></div>
@@ -1504,6 +1530,11 @@ function showErr(m) {
 function wireForm() {
   const body = $('#sheetBody');
   updateTotal();
+  // #sheetBody outlives every form, so its listeners are attached once. Added
+  // on each open they stacked, and a second open toggled Bold or a list twice:
+  // a tap that did nothing.
+  if (body.dataset.wired) return;
+  body.dataset.wired = '1';
   body.addEventListener('input', e => {
     if (e.target.id === 'f-place') Suggest.query(e.target.value.trim(), showSuggestions);
     if (e.target.matches('#f-people,#f-cpp,[data-ex]')) updateTotal();
@@ -1525,10 +1556,15 @@ function wireForm() {
       if (document.activeElement !== box) box.focus();
       const cmd = fmt.dataset.fmt;
       if (cmd === 'hilite') {
-        // Toggle: an already highlighted selection is cleared.
-        const sel = getSelection();
-        const on = sel.anchorNode && sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest('mark, span[style*="background"]');
-        document.execCommand('hiliteColor', false, on ? 'transparent' : '#FFF1A8');
+        // Opens the colour row; the colour itself is picked there.
+        const bar = $('#f-hlbar');
+        bar.hidden = !bar.hidden;
+        fmt.setAttribute('aria-expanded', !bar.hidden);
+      } else if (cmd === 'hl') {
+        const h = HILITES.find(x => x.id === fmt.dataset.hl);
+        document.execCommand('hiliteColor', false, h ? h.color : 'transparent');
+        $('#f-hlbar').hidden = true;
+        $('[data-fmt="hilite"]').setAttribute('aria-expanded', 'false');
       } else document.execCommand(cmd, false, null);
       return;
     }
