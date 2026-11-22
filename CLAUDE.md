@@ -228,7 +228,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, the budget by category, and the desktop layout. 118 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, the budget by category, notes formatting, and the desktop layout. 123 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

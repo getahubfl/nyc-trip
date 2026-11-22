@@ -564,6 +564,53 @@ window.maplibregl = {
   ok('it does not keep reloading if the new version does not arrive', u.url() === before, u.url());
   await u.close();
 
+  console.log('\n— NOTES —');
+  // Old plain-text notes keep their line breaks when shown.
+  await q.evaluate(async () => {
+    window.__rows.push({ id: 'n1', day: '2026-11-25', time: '09:00', duration_min: 30, title: 'Notes test', category: 'other', status: 'confirmed',
+      people: 2, cost_per_person: 0, extras: [], needs_reservation: false, booked: false, geo_status: 'none', map_kind: 'spot',
+      notes: 'Line one\nLine two\n\nAfter a gap' });
+    await window.Data.load();
+  });
+  await q.evaluate(() => window.openDetail('n1'));
+  await q.waitForTimeout(400);
+  ok('plain notes keep their line breaks', (await q.locator('dd.note').innerText()) === 'Line one\nLine two\n\nAfter a gap', JSON.stringify(await q.locator('dd.note').innerText()));
+  // Write formatted notes in the editor.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(400);
+  ok('the notes box has a formatting toolbar', await q.locator('.notebar [data-fmt]').count() === 6);
+  await q.locator('#f-notes').click();
+  await q.keyboard.press('ControlOrMeta+a');
+  await q.keyboard.press('Delete');
+  await q.keyboard.type('Pack layers');
+  await q.keyboard.press('ControlOrMeta+a');
+  await q.locator('[data-fmt="bold"]').click();
+  await q.keyboard.press('End');
+  await q.keyboard.press('Enter');
+  await q.locator('[data-fmt="bold"]').click();   // bold off for the list, as in any editor
+  await q.locator('[data-fmt="insertUnorderedList"]').click();
+  await q.keyboard.type('Gloves');
+  await q.keyboard.press('Enter');
+  await q.keyboard.type('Hat');
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  const saved = await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes);
+  ok('bold and bullets are saved', /<b>Pack layers<\/b>/.test(saved) && /<ul><li>Gloves<\/li><li>Hat<\/li><\/ul>/.test(saved), saved);
+  await q.evaluate(() => window.openDetail('n1'));
+  await q.waitForTimeout(400);
+  ok('and shown that way', await q.locator('dd.note b').count() === 1 && await q.locator('dd.note li').count() === 2);
+  // Pasted or stored markup is reduced to the allowed tags, no attributes.
+  await q.evaluate(async () => {
+    const r = window.__rows.find(x => x.id === 'n1');
+    r.notes = '<div>Hi <img src=x onerror="window.__xss=1"><a href="https://x">link</a> <b onclick="x()">bold</b><script>window.__xss=2<\/script></div>';
+    await window.Data.load(); window.openDetail('n1');
+  });
+  await q.waitForTimeout(400);
+  ok('unsafe markup in notes is stripped', await q.evaluate(() => !window.__xss && !document.querySelector('dd.note img, dd.note a, dd.note script, dd.note [onclick]'))
+     && (await q.locator('dd.note').innerText()).includes('link'));
+  await q.locator('#closeSheet').click();
+  await q.waitForTimeout(300);
+
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
   await q.waitForTimeout(400);
