@@ -198,8 +198,10 @@ The New York accents are three, and only three — don't add more:
 Red means "not booked" or failed, and green means booked; nothing else uses
 them. "Not booked" reads louder than "Booked". Tags are neutral grey pills
 except those two. Category colour appears only on bullets, map pins and the
-dots in chips — never on text. Mobile-first, big tap targets, legible in
-daylight. Avoid: decorative colour, gradients, all-caps headings (small caps
+dots in chips — never on text. **Strictly mobile:** both travellers use it only on
+iPhones (Safari and the Home Screen app), so every change is designed and
+judged at phone width; the desktop layout is kept working but is not a
+target. Big tap targets, legible in daylight. Avoid: decorative colour, gradients, all-caps headings (small caps
 labels on form fields and detail rows only), emoji as iconography.
 
 ## Setup, in order
@@ -228,7 +230,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, the budget by category, notes formatting, and the desktop layout. 123 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, the budget by category, notes formatting and highlight colours, and the desktop layout. 122 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

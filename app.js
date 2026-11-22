@@ -168,6 +168,7 @@ function fromRow(r) {
     geoResolved: r.geo_resolved || '',
     mapKind: r.map_kind || '',
     placeName: r.place_name || '',
+    party: r.party || '',
     updatedBy: r.updated_by || ''
   };
 }
@@ -195,7 +196,8 @@ function toRow(e) {
     geo_resolved: e.geoResolved || '',
     // Only once the columns exist: PostgREST refuses unknown columns, and a
     // refused write would roll back every save.
-    ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {})
+    ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {}),
+    ...(Data.hasPartyCol ? { party: e.party || null } : {})
   };
 }
 
@@ -212,7 +214,6 @@ const S = {
   toBookOnly: false,
   filtersOpen: false,
   selected: null,
-  focusLeg: null,   // [fromId, toId] while a leg is tapped
   session: null,
   online: true
 };
@@ -225,6 +226,7 @@ const Data = {
   // map_kind and place_name arrive with a one-off schema change. Until they
   // exist the app neither writes them nor shows the place/spot switch.
   hasMapCols: false,
+  hasPartyCol: false,
 
   async load() {
     const { data, error } = await sb.from('events').select('*');
@@ -234,6 +236,11 @@ const Data = {
       const probe = await sb.from('events').select('map_kind', { head: true });
       this.hasMapCols = !probe.error;
     } catch (err) { this.hasMapCols = false; }
+    // party ('group' | 'yours') arrived after map_kind, with its own change.
+    try {
+      const probe = await sb.from('events').select('party', { head: true });
+      this.hasPartyCol = !probe.error;
+    } catch (err) { this.hasPartyCol = false; }
   },
 
   // Every open browser subscribes; any insert/update/delete lands here within
@@ -411,28 +418,12 @@ const Map_ = {
     }));
 
     this.map.on('load', () => {
-      /* A: the walking route along real streets between each pair of stops
-         on the same day. B: walk, car and subway for one leg, shown while
-         that leg is tapped in the list. Static picture, not navigation. */
-      const empty = { type: 'FeatureCollection', features: [] };
+      /* The walking route along real streets between each pair of stops on
+         the same day. Static picture, not navigation. */
       const round = { 'line-cap': 'round', 'line-join': 'round' };
-      ['route', 'legcar', 'legsub', 'legsubwalk', 'legwalk', 'legends'].forEach(id => this.map.addSource(id, { type: 'geojson', data: empty }));
+      this.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: round,
         paint: { 'line-color': '#111111', 'line-width': 2.6, 'line-opacity': 0.8 } });
-      this.map.addLayer({ id: 'legcar-case', type: 'line', source: 'legcar', layout: round,
-        paint: { 'line-color': '#6B5B00', 'line-width': 4, 'line-opacity': 0.55 } });
-      this.map.addLayer({ id: 'legcar', type: 'line', source: 'legcar', layout: round,
-        paint: { 'line-color': '#FCCC0A', 'line-width': 2.2 } });
-      this.map.addLayer({ id: 'legsub', type: 'line', source: 'legsub', layout: round,
-        paint: { 'line-color': '#0A62C9', 'line-width': 2.4 } });
-      this.map.addLayer({ id: 'legsubwalk', type: 'line', source: 'legsubwalk', layout: round,
-        paint: { 'line-color': '#0A62C9', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
-      this.map.addLayer({ id: 'legwalk', type: 'line', source: 'legwalk', layout: round,
-        paint: { 'line-color': '#111111', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
-      // A small dot in the path's colour at each end of each path; for the
-      // subway, the stations where the train is boarded and left.
-      this.map.addLayer({ id: 'legends', type: 'circle', source: 'legends',
-        paint: { 'circle-radius': 4, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 1.5 } });
       // MapLibre opens the compact credits expanded, a wide box across the
       // bottom of a phone-sized map. Start it folded to its (i) button.
       document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show').forEach(el => {
@@ -489,49 +480,11 @@ const Map_ = {
     const fc = lines => ({ type: 'FeatureCollection',
       features: lines.filter(c => c && c.length > 1).map(c => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: c } })) });
     const straight = (a, b) => [[a.lng, a.lat], [b.lng, b.lat]];
-    const leg = S.focusLeg && list.find(e => e.id === S.focusLeg[0]) && list.find(e => e.id === S.focusLeg[1])
-      ? [list.find(e => e.id === S.focusLeg[0]), list.find(e => e.id === S.focusLeg[1])] : null;
-    if (S.focusLeg && !leg) S.focusLeg = null;
-    $('#legKey').hidden = !leg;
-
     const pairs = [];
-    if (!leg && !S.toBookOnly) for (let i = 0; i < list.length - 1; i++) if (list[i].day === list[i + 1].day) pairs.push([list[i], list[i + 1]]);
+    if (!S.toBookOnly) for (let i = 0; i < list.length - 1; i++) if (list[i].day === list[i + 1].day) pairs.push([list[i], list[i + 1]]);
     // Where there is no walking route (from the airport), the car route.
     this.map.getSource('route').setData(fc(pairs.map(([a, b]) =>
       (Route.get('walk', a, b) || {}).path || (Route.get('car', a, b) || {}).path || straight(a, b))));
-
-    const [a, b] = leg || [];
-    const r = mode => leg ? Route.get(mode, a, b) : null;
-    this.map.getSource('legwalk').setData(fc(leg ? [(r('walk') || {}).path || straight(a, b)] : []));
-    this.map.getSource('legcar').setData(fc(leg && r('car') ? [r('car').path] : []));
-    const sub = leg && r('sub') && !r('sub').none ? r('sub') : null;
-    this.map.getSource('legsub').setData(fc(sub && sub.paths ? sub.paths : []));
-    this.map.getSource('legsubwalk').setData(fc(sub && sub.walks ? sub.walks : []));
-
-    const ends = [];
-    const mark = (path, color) => { if (path && path.length > 1) ends.push([path[0], color], [path[path.length - 1], color]); };
-    if (leg) {
-      mark((r('walk') || {}).path, '#111111');
-      mark((r('car') || {}).path, '#FCCC0A');
-      (sub && sub.paths || []).forEach(p => mark(p, '#0A62C9'));
-    }
-    this.map.getSource('legends').setData({ type: 'FeatureCollection', features: ends.map(([c, color]) =>
-      ({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: c } })) });
-  },
-
-  // Frame one leg: both stops and every line drawn for it.
-  fitLeg(a, b) {
-    if (!this.ready) return;
-    const pts = [[a.lng, a.lat], [b.lng, b.lat]];
-    for (const mode of ['walk', 'car', 'sub']) {
-      const r = Route.get(mode, a, b);
-      if (r && r.path) pts.push(...r.path);
-      if (r && r.paths) r.paths.forEach(p => pts.push(...p));
-      if (r && r.walks) r.walks.forEach(p => pts.push(...p));
-    }
-    const bounds = new maplibregl.LngLatBounds();
-    pts.forEach(p => bounds.extend(p));
-    this.map.fitBounds(bounds, { padding: { top: 90, bottom: 50, left: 50, right: 50 }, maxZoom: 16, duration: 600 });
   },
 
   fit(list) {
@@ -742,7 +695,12 @@ function renderList() {
     ? `<div class="daytitle">Still to book · ${list.length}</div>`
     : allDays
       ? `<div class="daytitle">The whole trip · ${list.length} stop${list.length === 1 ? '' : 's'}</div>`
-      : `<div class="daytitle">${esc(d.label)}</div>`;
+      : `<div class="daytitle">${esc(d.label)}${wxPill(Weather.day(S.day))}</div>`;
+
+  // A single day is split into morning, afternoon and night, each headed
+  // with its own forecast. Stops with no time follow, under "Anytime".
+  const byPart = !S.toBookOnly && !allDays;
+  let curPart;
 
   let pinIdx = 0;
   let curDay = null;
@@ -758,7 +716,20 @@ function renderList() {
     if (allDays && e.day !== curDay) {
       curDay = e.day;
       const cnt = list.filter(x => x.day === e.day).length;
-      html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i></div>`;
+      html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i>${wxPill(Weather.day(e.day))}</div>`;
+    }
+    if (byPart && partOf(e) !== curPart) {
+      // Close the part just finished, then name every part up to this one,
+      // so an empty morning still shows with its weather.
+      if (curPart) html += partEnd(list.filter(x => partOf(x) === curPart));
+      const from = curPart === undefined ? 0 : PARTS.indexOf(curPart) + 1;
+      const to = partOf(e) ? PARTS.indexOf(partOf(e)) : PARTS.length - 1;
+      for (let k = from; k <= to; k++) {
+        html += partHeader(S.day, PARTS[k]);
+        if (k < to || !partOf(e)) html += partEnd([]);
+      }
+      if (!partOf(e)) html += `<div class="part"><span>Anytime<small>no start time</small></span></div>`;
+      curPart = partOf(e);
     }
 
     const dayTag = S.toBookOnly && dd ? `<span class="tag">${dd.dow} ${dd.n}</span>` : '';
@@ -773,6 +744,14 @@ function renderList() {
         locBit = `<div class="noloc">No location yet — add coordinates</div>`;
       }
     }
+    /* The trip here from the stop before, on the same day, inside this card:
+       time, name, then how to get here, then the map link, then the tags.
+       In the whole-trip view the stop before may be yesterday's. */
+    const prev = list[i - 1];
+    const from = !S.toBookOnly && prev && prev.day === e.day && placed && hasLoc(prev) ? prev : null;
+    if (from) legs.push([from, e]);
+    const legBit = from ? `<div class="leg" data-leg="${Route.key(from, e)}" data-from="${from.id}" data-to="${e.id}">${legHTML(from, e)}</div>` : '';
+
     const res = e.needsReservation
       ? `<span class="tag ${e.booked ? 'booked' : 'unbooked'}">${e.booked ? 'Booked' : 'Not booked'}</span>`
       : '';
@@ -784,23 +763,22 @@ function renderList() {
     html += `<div class="stop">
       <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${num}</div>
       <div class="card">
+        ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}
         <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
+        ${legBit}
         ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
     </div>`;
 
-    // Legs only make sense between consecutive stops on the SAME day. In the
-    // whole-trip view the next stop may be tomorrow morning.
-    const nxt = list[i + 1];
-    if (!S.toBookOnly && nxt && nxt.day === e.day && placed && hasLoc(nxt)) {
-      const on = S.focusLeg && S.focusLeg[0] === e.id && S.focusLeg[1] === nxt.id;
-      html += `<button class="leg${on ? ' on' : ''}" data-leg="${Route.key(e, nxt)}" data-from="${e.id}" data-to="${nxt.id}" aria-pressed="${!!on}">${legHTML(e, nxt)}</button>`;
-      legs.push([e, nxt]);
-    }
   });
+  // The parts of the day after the last stop still show their weather.
+  if (byPart && curPart) {
+    html += partEnd(list.filter(x => partOf(x) === curPart));
+    for (let k = PARTS.indexOf(curPart) + 1; k < PARTS.length; k++) html += partHeader(S.day, PARTS[k]) + partEnd([]);
+  }
   el.innerHTML = html;
   legs.forEach(([a, b]) => Route.request(a, b));
 }
@@ -941,11 +919,9 @@ function legHTML(a, b) {
   const chip = (mode, r, label) => r === null ? ''
     : `<span class="mode" title="${label}">${ICON[mode]}${r === undefined ? '…' : esc(fmtMin(r.min))}`
       + (mode === 'sub' && r && r.lines && r.lines.length ? `<i>${r.lines.map(esc).join(' › ')}</i>` : '') + `</span>`;
-  const on = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
   return `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`
     + `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
-    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`
-    + `<span class="legcta">${on ? 'Hide routes' : 'Show routes ›'}</span>`;
+    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`;
 }
 // The same, as one line of plain text, for the stop detail sheet.
 function legPlain(a, b) {
@@ -953,6 +929,92 @@ function legPlain(a, b) {
   if (!walk) return legText(haversine(a, b));
   return [(walk.m / 1609.34).toFixed(walk.m < 1609 ? 2 : 1) + ' mi', 'walk ' + fmtMin(walk.min),
     car ? 'car ' + fmtMin(car.min) : '', sub && !sub.none ? 'subway ' + fmtMin(sub.min) : ''].filter(Boolean).join(' · ');
+}
+
+/* ============================================================
+   WEATHER — Open-Meteo (api.open-meteo.com): free, no key, hourly forecasts
+   up to 16 days out. Fetched once per calendar day on the phone and kept,
+   so it refreshes by itself the first time the app opens each morning.
+   ============================================================ */
+const WX_KEY = 'nyc-trip-weather:v1';
+const PARTS = [
+  { id: 'morning',   name: 'Morning',   from: 0,  to: 12, hours: '6am–12pm' },   // stops before 6am count as morning
+  { id: 'afternoon', name: 'Afternoon', from: 12, to: 18, hours: '12–6pm' },
+  { id: 'night',     name: 'Night',     from: 18, to: 24, hours: '6pm–12am' }
+];
+const Weather = {
+  data: null, loading: false,
+  today() { return new Date().toLocaleDateString('en-CA'); },
+  async load() {
+    try {
+      const v = JSON.parse(localStorage.getItem(WX_KEY));
+      if (v && v.on === this.today()) { this.data = v.data; return; }
+      if (v) this.data = v.data;   // yesterday's forecast until today's arrives
+    } catch (err) { /* no storage */ }
+    if (this.loading) return;
+    this.loading = true;
+    try {
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.758&longitude=-73.9855'
+        + '&hourly=temperature_2m,weather_code,precipitation_probability'
+        + '&daily=temperature_2m_max,temperature_2m_min,weather_code'
+        + '&temperature_unit=fahrenheit&timezone=America%2FNew_York'
+        + `&start_date=${DAYS[0].id}&end_date=${DAYS[DAYS.length - 1].id}`);
+      const json = await res.json();
+      if (json.daily && json.hourly) {
+        this.data = { daily: json.daily, hourly: json.hourly };
+        try { localStorage.setItem(WX_KEY, JSON.stringify({ on: this.today(), data: this.data })); } catch (err) { /* no storage */ }
+        render();
+      }
+    } catch (err) { console.warn('[weather]', err); }   // no pill is the fallback
+    this.loading = false;
+  },
+  day(id) {
+    const d = this.data && this.data.daily, i = d ? d.time.indexOf(id) : -1;
+    return i < 0 ? null : { hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), code: d.weather_code[i] };
+  },
+  // The part of a day: its high and low, its wettest hour's chance of rain,
+  // and the most telling sky (rain beats cloud beats sun).
+  part(id, p) {
+    const h = this.data && this.data.hourly;
+    if (!h) return null;
+    const idx = h.time.map((t, i) => [t, i]).filter(([t]) => t.startsWith(id) && +t.slice(11, 13) >= Math.max(p.from, 6) && +t.slice(11, 13) < p.to).map(([, i]) => i);
+    if (!idx.length) return null;
+    const temps = idx.map(i => h.temperature_2m[i]);
+    return { hi: Math.round(Math.max(...temps)), lo: Math.round(Math.min(...temps)),
+      rain: Math.max(...idx.map(i => h.precipitation_probability[i] || 0)),
+      code: idx.map(i => h.weather_code[i]).sort((a, b) => wxRank(b) - wxRank(a))[0] };
+  }
+};
+function wxKind(code) {
+  if (code >= 95) return 'rain';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (code >= 51) return 'rain';
+  if (code >= 2) return 'cloud';
+  return 'sun';
+}
+const wxRank = code => ({ sun: 0, cloud: 1, rain: 2, snow: 3 })[wxKind(code)];
+const WX_ICON = {
+  sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 9.5a4.75 4.75 0 0 1-.5 9.5z"/></svg>',
+  rain: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 5.5a4.75 4.75 0 0 1-.5 9.5z"/><path d="M8 18l-1 3M12.5 18l-1 3M17 18l-1 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  snow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 5.5a4.75 4.75 0 0 1-.5 9.5z"/><circle cx="8" cy="19.5" r="1.4"/><circle cx="12.5" cy="20.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>'
+};
+function wxPill(w) {
+  return w ? `<span class="wx">${WX_ICON[wxKind(w.code)]}${w.hi}°<i>/${w.lo}°</i></span>` : '';
+}
+function partHeader(dayId, p) {
+  const w = Weather.part(dayId, p);
+  return `<div class="part"><span>${p.name}<small>${p.hours}</small></span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}${w.rain >= 30 ? `<i>${w.rain}% rain</i>` : ''}</span>` : ''}</div>`;
+}
+const partOf = e => e.time ? PARTS.find(p => +e.time.slice(0, 2) < p.to) : null;
+// The close of a part of the day: how many stops, and from the first start
+// to the last finish.
+// The close of a part of the day: the stops' line ends in a terminus ring,
+// as a line ends on a subway strip map. An empty part says so instead.
+function partEnd(stops) {
+  return stops.length
+    ? `<div class="part-end" aria-hidden="true"><i></i></div>`
+    : `<div class="part-end empty"><i></i><span>Nothing planned</span></div>`;
 }
 
 function render() {
@@ -1165,7 +1227,7 @@ function openDetail(id) {
       </div>
     </div>
     <div class="tags d-tags">
-      <span class="tag">${c.name}</span>${statusTag(e)}
+      ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}<span class="tag">${c.name}</span>${statusTag(e)}
     </div>
     ${resHTML}
     ${(per || totalCost(e) || extras.length)
@@ -1209,6 +1271,24 @@ function openDetail(id) {
    links or styles into the app. Notes written before this, as plain text,
    are shown with their line breaks kept. */
 const NOTE_TAGS = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', MARK: 'mark', UL: 'ul', OL: 'ol', LI: 'li', BR: 'br', DIV: 'div', P: 'div' };
+// Highlight colours: lighter tints of the pin pastels. A highlight is kept
+// as <mark class="hl-NAME">, the one attribute the notes allow.
+const HILITES = [
+  { id: 'butter',   color: '#FCEB9F' },
+  { id: 'pink',     color: '#FBC9DA' },
+  { id: 'mint',     color: '#C2EDD2' },
+  { id: 'sky',      color: '#C6DBFA' },
+  { id: 'lavender', color: '#E6DAFD' },
+  { id: 'peach',    color: '#FFDCC2' }
+];
+const rgbOf = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(',');
+function hiliteName(style) {
+  const m = style.match(/background(?:-color)?:\s*(#[0-9a-f]{6}|rgba?\(([^)]*)\))/i);
+  if (!m) return 'butter';
+  const rgb = m[2] ? m[2].split(',').slice(0, 3).map(x => parseInt(x, 10)).join(',') : rgbOf(m[1]);
+  const hit = HILITES.find(h => rgbOf(h.color) === rgb);
+  return hit ? hit.id : 'butter';
+}
 const isRichNote = t => /<(b|i|mark|ul|ol|li|br|div)\b/i.test(t || '');
 function cleanNote(html) {
   const doc = new DOMParser().parseFromString(`<body>${html || ''}</body>`, 'text/html');
@@ -1218,7 +1298,12 @@ function cleanNote(html) {
     const inner = walk(n);
     const st = (n.getAttribute('style') || '').toLowerCase();
     // Safari's highlight and bold arrive as styled spans.
-    if (n.tagName === 'SPAN' && /background/.test(st) && !/transparent|initial|inherit/.test(st)) return `<mark>${inner}</mark>`;
+    if (n.tagName === 'SPAN' && /background/.test(st) && !/transparent|initial|inherit|rgba\([^)]*,\s*0\)/.test(st))
+      return `<mark class="hl-${hiliteName(st)}">${inner}</mark>`;
+    if (n.tagName === 'MARK') {
+      const c = (n.getAttribute('class') || '').match(/\bhl-(\w+)/);
+      return `<mark class="hl-${c && HILITES.some(h => h.id === c[1]) ? c[1] : 'butter'}">${inner}</mark>`;
+    }
     if (n.tagName === 'SPAN' && /font-weight:\s*(bold|[6-9]00)/.test(st)) return `<b>${inner}</b>`;
     const tag = NOTE_TAGS[n.tagName];
     if (!tag) return inner;                    // unknown element: keep its text only
@@ -1288,7 +1373,7 @@ function openForm(id) {
     id: null, day: S.toBookOnly ? DAYS[0].id : S.day, title: '', address: '', category: 'sights',
     time: '', durationMin: 60, people: 4, costPerPerson: 0, extras: [], link: '', notes: '',
     status: 'confirmed', needsReservation: false, booked: false, confirmation: '',
-    reservationTime: '', lat: null, lng: null, geoStatus: 'idle', mapKind: '', placeName: ''
+    reservationTime: '', lat: null, lng: null, geoStatus: 'idle', mapKind: '', placeName: '', party: ''
   };
   sheetMode = 'form';
   openSheet(existing ? 'Edit stop' : 'New stop', formHTML(),
@@ -1317,6 +1402,12 @@ function formHTML() {
       <button type="button" class="pick" data-kind="spot" aria-pressed="${f.mapKind === 'spot'}">An exact spot</button>
     </div>
     <div class="hint">A place opens its card in Apple Maps, by name. An exact spot opens the pin — a parade corner, the start of a walk.</div></div>
+
+  <div class="f" ${Data.hasPartyCol ? '' : 'hidden'}><span class="legend">WHO</span>
+    <div class="pickrow" id="f-party">
+      <button type="button" class="pick" data-party="yours" aria-pressed="${f.party === 'yours'}">Yours</button>
+      <button type="button" class="pick" data-party="group" aria-pressed="${f.party === 'group'}">Group</button>
+    </div></div>
 
   <div class="f" id="f-placerow" ${f.mapKind === 'place' ? '' : 'hidden'}><label for="f-place">BUSINESS NAME</label>
     <input id="f-place" type="text" value="${esc(f.placeName)}" placeholder="Start typing — Quality Italian" autocomplete="off">
@@ -1374,10 +1465,14 @@ function formHTML() {
     <div class="notebar" role="toolbar" aria-label="Note formatting">
       <button type="button" data-fmt="bold" aria-label="Bold"><b>B</b></button>
       <button type="button" data-fmt="italic" aria-label="Italic"><i>I</i></button>
-      <button type="button" data-fmt="hilite" aria-label="Highlight"><mark>H</mark></button>
-      <button type="button" data-fmt="insertUnorderedList" aria-label="Bulleted list">•&#8201;List</button>
-      <button type="button" data-fmt="insertOrderedList" aria-label="Numbered list">1.&#8201;List</button>
+      <button type="button" data-fmt="hilite" aria-label="Highlight" aria-expanded="false"><mark class="hl-butter">H</mark></button>
+      <button type="button" data-fmt="insertUnorderedList" aria-label="Bulleted list"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="7" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="5" cy="17" r="1.8"/><path d="M10 7h10M10 12h10M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button type="button" data-fmt="insertOrderedList" aria-label="Numbered list"><svg viewBox="0 0 24 24" aria-hidden="true"><text x="2.5" y="9.5" font-size="7" font-weight="700" font-family="Helvetica, Arial, sans-serif">1</text><text x="2.5" y="19.5" font-size="7" font-weight="700" font-family="Helvetica, Arial, sans-serif">2</text><path d="M10 7h10M10 12h10M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button type="button" data-fmt="removeFormat" aria-label="Clear formatting">Clear</button>
+    </div>
+    <div class="hlbar" id="f-hlbar" hidden>${HILITES.map(h =>
+      `<button type="button" data-fmt="hl" data-hl="${h.id}" aria-label="Highlight ${h.id}" style="background:${h.color}"></button>`).join('')}
+      <button type="button" data-fmt="hl" data-hl="none" aria-label="Remove highlight" class="hl-none">None</button>
     </div>
     <div id="f-notes" class="note noteedit" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="f-notes-label"
       data-placeholder="Anything worth remembering">${noteHTML(f.notes)}</div></div>
@@ -1435,6 +1530,11 @@ function showErr(m) {
 function wireForm() {
   const body = $('#sheetBody');
   updateTotal();
+  // #sheetBody outlives every form, so its listeners are attached once. Added
+  // on each open they stacked, and a second open toggled Bold or a list twice:
+  // a tap that did nothing.
+  if (body.dataset.wired) return;
+  body.dataset.wired = '1';
   body.addEventListener('input', e => {
     if (e.target.id === 'f-place') Suggest.query(e.target.value.trim(), showSuggestions);
     if (e.target.matches('#f-people,#f-cpp,[data-ex]')) updateTotal();
@@ -1456,10 +1556,15 @@ function wireForm() {
       if (document.activeElement !== box) box.focus();
       const cmd = fmt.dataset.fmt;
       if (cmd === 'hilite') {
-        // Toggle: an already highlighted selection is cleared.
-        const sel = getSelection();
-        const on = sel.anchorNode && sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest('mark, span[style*="background"]');
-        document.execCommand('hiliteColor', false, on ? 'transparent' : '#FFF1A8');
+        // Opens the colour row; the colour itself is picked there.
+        const bar = $('#f-hlbar');
+        bar.hidden = !bar.hidden;
+        fmt.setAttribute('aria-expanded', !bar.hidden);
+      } else if (cmd === 'hl') {
+        const h = HILITES.find(x => x.id === fmt.dataset.hl);
+        document.execCommand('hiliteColor', false, h ? h.color : 'transparent');
+        $('#f-hlbar').hidden = true;
+        $('[data-fmt="hilite"]').setAttribute('aria-expanded', 'false');
       } else document.execCommand(cmd, false, null);
       return;
     }
@@ -1467,6 +1572,13 @@ function wireForm() {
     if (dayBtn) {
       formState.day = dayBtn.dataset.day;
       [...$('#f-days').children].forEach(b => b.setAttribute('aria-pressed', b === dayBtn));
+      return;
+    }
+    const partyBtn = e.target.closest('[data-party]');
+    if (partyBtn) {
+      // Tapping the chosen one again clears it.
+      formState.party = formState.party === partyBtn.dataset.party ? '' : partyBtn.dataset.party;
+      [...$('#f-party').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.party === formState.party));
       return;
     }
     const kindBtn = e.target.closest('[data-kind]');
@@ -1547,7 +1659,7 @@ async function saveForm() {
     lat: prev ? prev.lat : null, lng: prev ? prev.lng : null,
     geoStatus: prev ? prev.geoStatus : 'idle',
     geoResolved: prev ? prev.geoResolved : '',
-    mapKind: f.mapKind, placeName: f.placeName
+    mapKind: f.mapKind, placeName: f.placeName, party: f.party || ''
   };
 
   // hand-typed coordinates always win over the lookup
@@ -1611,7 +1723,7 @@ async function saveForm() {
 document.addEventListener('click', async e => {
   const dayBtn = e.target.closest('#rail [data-day]');
   if (dayBtn) {
-    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null; S.focusLeg = null;
+    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null;
     render(); Map_.fit(); return;
   }
 
@@ -1634,23 +1746,6 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#tobook')) { S.toBookOnly = !S.toBookOnly; S.selected = null; render(); Map_.fit(); return; }
 
   if (e.target.closest('#budget')) { openBudget(); return; }
-
-  // Tap a leg: the map shows walk, car and subway for it. Tap it again, or
-  // the key's close button, to go back to the day's walking route.
-  const legBtn = e.target.closest('.leg[data-from]');
-  if (legBtn) {
-    const a = S.events.find(x => x.id === legBtn.dataset.from), b = S.events.find(x => x.id === legBtn.dataset.to);
-    const same = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
-    S.focusLeg = same ? null : [a.id, b.id];
-    renderList();
-    Map_.drawRoutes();
-    if (S.focusLeg) {
-      Map_.fitLeg(a, b);
-      $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else Map_.fit();
-    return;
-  }
-  if (e.target.closest('#legKeyClose')) { S.focusLeg = null; renderList(); Map_.drawRoutes(); Map_.fit(); return; }
 
   const bcat = e.target.closest('[data-bcat]');
   if (bcat) {
@@ -2057,6 +2152,7 @@ async function boot() {
 
   Data.subscribe();
   render();
+  Weather.load();
 
   /* Queue lookups BEFORE touching the map. This used to run after Map_.fit(),
      so anything that threw while fitting bounds took the geocoder down with

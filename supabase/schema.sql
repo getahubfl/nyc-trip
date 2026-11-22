@@ -90,6 +90,8 @@ create table if not exists public.events (
   -- the pin. Required for new stops by the app.
   map_kind          text check (map_kind in ('place','spot')),
   place_name        text not null default '',
+  -- Who it is for: 'group' (everyone) or 'yours' (Paris and Megan). Optional.
+  party             text check (party in ('group','yours')),
 
   -- bookkeeping
   created_at        timestamptz not null default now(),
@@ -102,6 +104,7 @@ create index if not exists events_day_time_idx on public.events (day, time);
 -- Added after the first deploy; safe on a table created before it.
 alter table public.events add column if not exists map_kind text check (map_kind in ('place','spot'));
 alter table public.events add column if not exists place_name text not null default '';
+alter table public.events add column if not exists party text check (party in ('group','yours'));
 
 -- Keep updated_at honest, and record who touched it last.
 create or replace function public.touch_event()

@@ -193,6 +193,7 @@ a{color:var(--link)}
 .stop-open:focus-visible{outline:0}
 .stop-open:focus-visible::after{outline:3px solid var(--yellow);outline-offset:2px;border-radius:8px}
 .card{border-bottom:1px solid var(--line);padding-bottom:15px;min-width:0}
+.stop:has(+ .part-end) .card{border-bottom:0}   /* the section end carries the rule */
 .card h3{font-weight:600;font-size:17px;line-height:1.25;letter-spacing:-.01em;margin:2px 0 3px}
 .card .when{font-size:13px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
 /* The address opens Apple Maps. The padding widens the tap area well past the
@@ -209,29 +210,59 @@ a{color:var(--link)}
 @keyframes blip{0%,100%{opacity:.3;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
 .noloc{font-size:12.5px;font-weight:600;color:var(--red);margin-top:8px}
 
-/* The walk to the next stop. A line runs from bullet to bullet, the way a
-   strip map joins stations. */
-.leg{margin-left:19px;border-left:2px solid var(--line);padding:9px 0 9px 32px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;
-  display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
-/* The leg row is a button: tapping it shows walk, car and subway for that
-   leg on the map. */
-button.leg{width:calc(100% - 19px);text-align:left;color:var(--ink-3);border-radius:0 10px 10px 0}
-button.leg.on{background:var(--fill)}
-.leg .legcta{font-weight:600;color:var(--link);white-space:nowrap}
-/* Map key while a leg is tapped. */
-.legkey{position:absolute;top:10px;right:10px;z-index:2;display:grid;gap:5px;padding:8px 34px 8px 11px;border-radius:12px;
-  background:rgba(255,255,255,.96);box-shadow:0 2px 10px rgba(0,0,0,.18);font-size:12.5px;color:var(--ink)}
-.legkey[hidden]{display:none}
-.legkey span{display:flex;align-items:center;gap:8px}
-.legkey svg{width:26px;height:8px}
-.legkey button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;font-size:18px;color:var(--ink-2)}
-/* Walking, car and subway, each an icon and a time. Ink, not colour: the
-   colour on this screen belongs to the stop bullets. */
+/* How to get here from the stop before, inside the card under the name.
+   Ink, not colour: the colour on this screen belongs to the stop bullets. */
+.leg{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;margin:4px 0 2px;font-size:12.5px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums}
 .leg .modes{display:inline-flex;flex-wrap:wrap;gap:4px 10px}
 .leg .mode{display:inline-flex;align-items:center;gap:4px;color:var(--ink-2);font-weight:600;white-space:nowrap}
 .leg .mode svg{width:15px;height:15px;fill:currentColor;flex:0 0 auto}
 .leg .mode i{font-style:normal;font-weight:500;color:var(--ink-3);margin-left:2px}
-.stop:has(+ .leg) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+.card .leg + .where{margin-top:-4px}
+/* The line joining one stop's bullet to the next, as a strip map joins
+   stations. */
+.stop + .stop{padding-top:14px}
+.stop:has(+ .stop) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:-14px;width:2px;background:var(--line)}
+.stop:has(+ .part-end:not(.empty)) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+.stop + .stop .marker::after{top:54px}
+
+/* ---------- weather and parts of the day ---------- */
+/* The day's high and low beside its title, and each part of the day headed
+   with its own forecast. Ink, not colour: weather is information, not one
+   of the three accents. */
+.daytitle{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wx{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:5px 11px;border-radius:999px;background:var(--fill);
+  font-size:14px;font-weight:700;letter-spacing:0;color:var(--ink);font-variant-numeric:tabular-nums}
+.wx i{font-style:normal;font-weight:500;color:var(--ink-3)}
+.wx svg,.part-wx svg{width:17px;height:17px;fill:currentColor;flex:0 0 auto}
+.daybreak .wx{margin-left:auto;font-size:12.5px;padding:3px 9px}
+.daybreak .wx svg{width:14px;height:14px}
+.part{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 14px;padding:8px 0 7px;
+  border-bottom:1px solid var(--line);font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--ink-2)}
+.list .part:not(:first-of-type){margin-top:18px}
+.part-wx{display:inline-flex;align-items:center;gap:6px;font-weight:600;letter-spacing:0;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.part-wx i{font-style:normal;font-weight:500;color:var(--ink-3)}
+
+.part small{font-size:12px;font-weight:500;letter-spacing:0;color:var(--ink-3);margin-left:8px}
+/* The close of each part of the day: the line joining the stop bullets runs
+   down into a terminus ring, as a line ends on a subway strip map, with a
+   fine rule across. */
+.part-end{position:relative;display:flex;align-items:center;gap:10px;height:30px;margin:0 0 8px;font-size:12px;color:var(--ink-3)}
+.part-end i{position:relative;flex:0 0 auto;width:12px;height:12px;margin-left:14px;border:2px solid #CFCFC9;border-radius:50%;background:var(--surface)}
+.part-end i::before{content:"";position:absolute;left:3px;bottom:100%;width:2px;height:14px;background:var(--line)}
+.part-end::after{content:"";flex:1 1 auto;height:1px;background:var(--line)}
+.part-end.empty i::before{display:none}
+.part-end.empty span{flex:0 0 auto}
+
+/* Group or just yours, pinned to the card's top-right corner, so travel
+   details above a card never move it. */
+.stop .party{position:absolute;top:0;right:0;z-index:1}
+.stop + .stop .party{top:14px}   /* level with the time, below the gap between stops */
+.card:has(.party) .when,.card:has(.party) h3{padding-right:72px}
+.party{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.party.group{background:var(--ink);color:#fff}
+.party.yours{background:var(--fill);color:var(--ink-2)}
+.d-tags .party{padding:4px 10px}
 
 /* ---------- new stop ---------- */
 .fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;
@@ -373,12 +404,25 @@ button.leg.on{background:var(--fill)}
    stop's detail. Line breaks and lists are kept as written. */
 .notebar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
 .notebar button{min-width:40px;height:36px;padding:0 10px;border-radius:9px;background:var(--fill);color:var(--ink);font-size:14px;font-weight:600}
-.notebar mark{background:#FFF1A8;color:inherit;padding:0 3px;border-radius:3px}
+.notebar mark{color:inherit;padding:0 3px;border-radius:3px}
+.notebar svg{width:20px;height:20px;fill:currentColor;display:block}
+.notebar button[aria-expanded="true"]{background:var(--ink);color:#fff}
+/* Highlight colours, one row under the toolbar while it is open. */
+.hlbar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.hlbar[hidden]{display:none}
+.hlbar button{width:36px;height:36px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.hlbar .hl-none{width:auto;padding:0 12px;border-radius:999px;background:var(--fill);font-size:13px;font-weight:600;color:var(--ink-2);box-shadow:none}
 .noteedit{min-height:96px;padding:12px 14px;border:1.5px solid transparent;background:var(--fill);border-radius:12px;font-size:16px;
   line-height:1.45;outline:0;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
 .noteedit:focus{border-color:var(--ink);background:var(--surface)}
 .noteedit:empty::before{content:attr(data-placeholder);color:var(--ink-3)}
-.note mark,.note span[style*="background"]{background:#FFF1A8;color:inherit;padding:0 2px;border-radius:3px}
+.note mark,.notebar mark{background:#FCEB9F;color:inherit;padding:0 2px;border-radius:3px}
+.note mark.hl-pink{background:#FBC9DA}
+.note mark.hl-mint{background:#C2EDD2}
+.note mark.hl-sky{background:#C6DBFA}
+.note mark.hl-lavender{background:#E6DAFD}
+.note mark.hl-peach{background:#FFDCC2}
+.note span[style*="background"]{padding:0 2px;border-radius:3px}
 .note ul,.note ol{margin:4px 0;padding-left:22px}
 .note li{margin:2px 0}
 .note div{min-height:1.2em}

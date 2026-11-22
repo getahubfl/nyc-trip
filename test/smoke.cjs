@@ -511,8 +511,8 @@ window.maplibregl = {
     const base = { day: '2026-11-25', duration_min: 60, status: 'confirmed', category: 'sights', people: 2, cost_per_person: 0, extras: [],
       needs_reservation: false, booked: false, geo_status: 'manual', map_kind: 'place', place_name: '' };
     window.__rows.length = 0;
-    window.__rows.push({ ...base, id: 'leg-a', time: '15:00', title: 'Hotel', lat: 40.7645, lng: -73.9830 },
-                       { ...base, id: 'leg-b', time: '16:30', title: 'Levain', lat: 40.7813, lng: -73.9797 });
+    window.__rows.push({ ...base, id: 'leg-a', time: '15:00', title: 'Hotel', address: '237 W 54th St', lat: 40.7645, lng: -73.9830 },
+                       { ...base, id: 'leg-b', time: '16:30', title: 'Levain', address: '351 Amsterdam Ave', lat: 40.7813, lng: -73.9797 });
     await window.Data.load();
     window.S.day = '2026-11-25'; window.S.toBookOnly = false;
   });
@@ -524,24 +524,29 @@ window.maplibregl = {
   ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
   ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
   ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
-  ok('the leg says it can be tapped', (await q.locator('.leg .legcta').first().innerText()).startsWith('Show routes'));
+  ok('the trip here sits inside the card, under the name and above the map link', await q.evaluate(() => {
+    const card = document.querySelectorAll('.stop .card')[1], kids = [...card.children].map(k => k.className);
+    return kids.indexOf('leg') === kids.indexOf('when') + 2 && kids.indexOf('leg') < kids.indexOf('where'); }));
+  ok('no routes button', await q.locator('.legcta').count() === 0);
+
+  // The section end carries the last stop's rule, and moves when a later stop arrives.
+  const rules = () => q.evaluate(() => [...document.querySelectorAll('.stop')].map(s =>
+    s.querySelector('[data-open]').dataset.open + ':' + getComputedStyle(s.querySelector('.card')).borderBottomWidth).join(' '));
+  ok('the last stop of a section has no rule of its own', await rules() === 'leg-a:1px leg-b:0px', await rules());
+  await q.evaluate(async () => {
+    window.__rows.push({ ...window.__rows[1], id: 'leg-c', time: '17:30', title: 'Late stop' });
+    await window.Data.load();
+  });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(300);
+  ok('a new last stop takes over, and the one before gets its rule back', await rules() === 'leg-a:1px leg-b:1px leg-c:0px', await rules());
+  await q.evaluate(async () => { window.__rows.splice(2, 1); await window.Data.load(); });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(1200);
 
   console.log('\n— ROUTES ON THE MAP —');
   const lineLen = id => q.evaluate(i => { const d = window.__map._src[i].data; return d.features.map(f => f.geometry.coordinates.length); }, id);
   ok('the map draws the walking route along streets, not a straight line', JSON.stringify(await lineLen('route')) === '[4]', JSON.stringify(await lineLen('route')));
-  ok('no leg detail until a leg is tapped', (await lineLen('legcar')).length === 0 && await q.locator('#legKey[hidden]').count() === 1);
-  await q.locator('.leg').first().click();
-  await q.waitForTimeout(300);
-  ok('tapping a leg shows walk, car and subway with a key',
-     (await lineLen('legwalk')).length === 1 && (await lineLen('legcar')).length === 1 && (await lineLen('legsub')).length === 1 &&
-     await q.locator('#legKey:not([hidden])').count() === 1, JSON.stringify([await lineLen('legwalk'), await lineLen('legcar'), await lineLen('legsub')]));
-  ok('the day route steps aside for the tapped leg', (await lineLen('route')).length === 0);
-  ok('the subway trip includes the walks to and from the train', (await lineLen('legsubwalk')).length === 2);
-  ok('a dot at each end of each path', await q.evaluate(() => window.__map._src.legends.data.features.length) === 6);
-  ok('the tapped leg offers to hide the routes', (await q.locator('.leg.on .legcta').innerText()) === 'Hide routes');
-  await q.locator('#legKeyClose').click();
-  await q.waitForTimeout(300);
-  ok('closing the key brings the day route back', JSON.stringify(await lineLen('route')) === '[4]' && await q.locator('#legKey[hidden]').count() === 1);
   // Reordering: move the second stop before the first and the legs follow.
   await q.evaluate(async () => { const r = window.__rows.find(x => x.id === 'leg-b'); r.time = '14:00'; await window.Data.load(); });
   await q.locator('#rail [data-day="2026-11-25"]').click();
@@ -599,6 +604,29 @@ window.maplibregl = {
   await q.evaluate(() => window.openDetail('n1'));
   await q.waitForTimeout(400);
   ok('and shown that way', await q.locator('dd.note b').count() === 1 && await q.locator('dd.note li').count() === 2);
+  // Highlight in a pin-family colour.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(400);
+  await q.locator('#f-notes').click();
+  await q.keyboard.press('ControlOrMeta+End');
+  await q.keyboard.press('Enter');
+  await q.keyboard.type('Pink bit');
+  for (let k = 0; k < 'Pink bit'.length; k++) await q.keyboard.press('Shift+ArrowLeft');
+  await q.locator('[data-fmt="hilite"]').click();
+  { const n = await q.locator('#f-hlbar:not([hidden]) [data-hl]').count(); ok('highlight opens a row of colours', n === 7, n); }
+  await q.locator('[data-hl="pink"]').click();
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  ok('the highlight colour is kept', /<mark class="hl-pink">Pink bit<\/mark>/.test(await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes)),
+     await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes));
+  // The form has been opened many times by now; a tap must still act once.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(300);
+  const ex0 = await q.locator('#f-extras .extra').count();
+  await q.locator('#f-addextra').click();
+  ok('a tap acts once however often the form has opened', await q.locator('#f-extras .extra').count() === ex0 + 1);
+  await q.locator('[data-cancel]').click();
+  await q.waitForTimeout(300);
   // Pasted or stored markup is reduced to the allowed tags, no attributes.
   await q.evaluate(async () => {
     const r = window.__rows.find(x => x.id === 'n1');
