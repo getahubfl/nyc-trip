@@ -133,7 +133,8 @@ const near = e => hasLoc(e) ? e.lat + ',' + e.lng : MIDTOWN;
 const webLink = u => /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/[^\s"'<>]*)?$/i.test(u) ? 'https://' + u : '';
 function socialLinks(e) {
   const name = e.placeName || e.title || '';
-  const place = e.mapKind === 'place' && name;
+  // Travel stops (airports, the hotel run, the flight home) have nothing to search.
+  const place = e.mapKind === 'place' && e.category !== 'travel' && name;
   const ig = (e.instagram || '').trim(), yp = (e.yelp || '').trim();
   // "@joes.pizza" or "joespizza" is a handle; anything with a slash is a link.
   const handle = /^@?[a-z0-9._]{1,30}$/i.test(ig) && (ig.startsWith('@') || !/\.[a-z]{2,}$/i.test(ig)) ? ig.replace(/^@/, '') : '';
