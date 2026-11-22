@@ -529,6 +529,21 @@ window.maplibregl = {
     return kids.indexOf('leg') === kids.indexOf('when') + 2 && kids.indexOf('leg') < kids.indexOf('where'); }));
   ok('no routes button', await q.locator('.legcta').count() === 0);
 
+  // The section end carries the last stop's rule, and moves when a later stop arrives.
+  const rules = () => q.evaluate(() => [...document.querySelectorAll('.stop')].map(s =>
+    s.querySelector('[data-open]').dataset.open + ':' + getComputedStyle(s.querySelector('.card')).borderBottomWidth).join(' '));
+  ok('the last stop of a section has no rule of its own', await rules() === 'leg-a:1px leg-b:0px', await rules());
+  await q.evaluate(async () => {
+    window.__rows.push({ ...window.__rows[1], id: 'leg-c', time: '17:30', title: 'Late stop' });
+    await window.Data.load();
+  });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(300);
+  ok('a new last stop takes over, and the one before gets its rule back', await rules() === 'leg-a:1px leg-b:1px leg-c:0px', await rules());
+  await q.evaluate(async () => { window.__rows.splice(2, 1); await window.Data.load(); });
+  await q.locator('#rail [data-day="2026-11-25"]').click();
+  await q.waitForTimeout(1200);
+
   console.log('\n— ROUTES ON THE MAP —');
   const lineLen = id => q.evaluate(i => { const d = window.__map._src[i].data; return d.features.map(f => f.geometry.coordinates.length); }, id);
   ok('the map draws the walking route along streets, not a straight line', JSON.stringify(await lineLen('route')) === '[4]', JSON.stringify(await lineLen('route')));

@@ -193,6 +193,7 @@ a{color:var(--link)}
 .stop-open:focus-visible{outline:0}
 .stop-open:focus-visible::after{outline:3px solid var(--yellow);outline-offset:2px;border-radius:8px}
 .card{border-bottom:1px solid var(--line);padding-bottom:15px;min-width:0}
+.stop:has(+ .part-end) .card{border-bottom:0}   /* the section end carries the rule */
 .card h3{font-weight:600;font-size:17px;line-height:1.25;letter-spacing:-.01em;margin:2px 0 3px}
 .card .when{font-size:13px;font-weight:500;color:var(--ink-2);font-variant-numeric:tabular-nums}
 /* The address opens Apple Maps. The padding widens the tap area well past the
