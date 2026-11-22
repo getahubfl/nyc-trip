@@ -1045,7 +1045,7 @@ function wxStamped(w) {
 }
 function partHeader(dayId, p) {
   const w = Weather.part(dayId, p);
-  return `<div class="part"><span>${p.name}<small>${p.hours}</small></span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}${w.rain >= 30 ? `<i>${w.rain}% rain</i>` : ''}</span>` : ''}</div>`;
+  return `<div class="part"><span>${p.name}<small>${p.hours}</small></span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}<i>${w.rain}% rain</i></span>` : ''}</div>`;
 }
 const partOf = e => e.time ? PARTS.find(p => +e.time.slice(0, 2) < p.to) : null;
 // The close of a part of the day: how many stops, and from the first start
