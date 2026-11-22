@@ -212,7 +212,7 @@ a{color:var(--link)}
 
 /* How to get here from the stop before, inside the card under the name.
    Ink, not colour: the colour on this screen belongs to the stop bullets. */
-.leg{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;margin:4px 0 2px;font-size:12.5px;color:var(--ink-3);
+.leg{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin:4px 0 2px;font-size:12.5px;color:var(--ink-3);
   font-variant-numeric:tabular-nums}
 .leg .modes{display:inline-flex;flex-wrap:wrap;gap:4px 10px}
 .leg .mode{display:inline-flex;align-items:center;gap:4px;color:var(--ink-2);font-weight:600;white-space:nowrap}
