@@ -48,6 +48,7 @@ Everything here is on a free tier with no credit card anywhere.
 | Geocoding | Nominatim (OpenStreetMap) | Free, no key. Rate limited to one request per second by policy. |
 | Walking + car routes | OSRM on routing.openstreetmap.de | Free, no key, follows real streets. Volunteer-run: keep requests few. |
 | Subway routes | Transitous (api.transitous.org) | Free public-transit planner with the MTA timetable, no key. |
+| Instagram + Yelp research | Scheduled Claude task + `place-researcher` agent (Sonnet, web search only) | No free API finds either. Runs on the Claude plan, writes through two narrow database functions with a key. |
 | Keepalive | GitHub Actions cron | Free Supabase projects pause after 7 days idle; a paused project cold-starts in 10–30s. |
 
 **The host and the database are not connected.** The browser loads static files
@@ -80,6 +81,9 @@ styles.css              all styling (see Design direction)
 app.js                  the whole application, ES module
 config.example.js       template — copy to config.js with real values
 supabase/schema.sql     tables, RLS policies, realtime, heartbeat. Run once.
+supabase/agent.sql      the research agent's key and its two functions. Run once.
+.claude/agents/
+  place-researcher.md   strict Instagram + Yelp research for one place
 .github/workflows/
   deploy.yml            builds config.js from secrets, stamps versions, writes version.json, publishes
   keepalive.yml         pings Supabase every 3 days so it never pauses
@@ -195,6 +199,18 @@ sheet/detail/form → global event handling → auth gate → boot.
   only with a saved handle or link: the app opens a keyword-search link on
   Explore and drops the words, so there is no Instagram search fallback. Only http(s) links are used. The
   `instagram` and `yelp` columns are detected like `party` (`hasSocialCols`).
+- **New places are researched for Instagram and Yelp by a scheduled task.**
+  About hourly (7am–11pm New York time) a fresh Claude session calls
+  `agent_pending()`; when it returns nothing, the run ends there. Otherwise
+  it runs the `place-researcher` agent (Sonnet, web search and fetch only)
+  per stop, saves only "high" confidence answers through `agent_save()`, and
+  marks the stop researched. `agent_save` only fills EMPTY fields, so a link
+  typed by hand always wins, and it rejects anything but an Instagram handle
+  or a yelp.com/biz page. A stop is researched again only when its title,
+  business name or address changes (`social_checked_for`). The task does not
+  sign in: an `x-agent-token` header, added by the Claude environment's
+  network secret, is checked against a hash in `agent_keys`. The scheduled
+  task's prompt carries the same rules as `place-researcher.md`; change both.
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
