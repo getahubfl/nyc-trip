@@ -1191,7 +1191,7 @@ function openDetail(id) {
               : `<span class="bad">Not placed on the map yet</span>`)}</dd></div>
       ${extras.length ? `<div class="d-row"><dt>EXTRAS</dt><dd>${extras.map(x => `${esc(x.label || 'Extra')} — ${money(x.amount)}`).join('<br>')}</dd></div>` : ''}
       ${e.link ? `<div class="d-row"><dt>LINK</dt><dd><a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.link.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
-      ${e.notes ? `<div class="d-row"><dt>NOTES</dt><dd>${esc(e.notes)}</dd></div>` : ''}
+      ${e.notes ? `<div class="d-row"><dt>NOTES</dt><dd class="note">${noteHTML(e.notes)}</dd></div>` : ''}
       ${e.updatedBy ? `<div class="d-row"><dt>LAST EDIT</dt><dd>${esc(e.updatedBy)}</dd></div>` : ''}
     </dl>
     ${(prev || next) ? `<div class="neighbors">${walk(prev, 'BEFORE')}${walk(next, 'AFTER')}</div>` : ''}
@@ -1200,6 +1200,37 @@ function openDetail(id) {
   openSheet(day.dow + ' ' + day.n, body,
     `<button class="btn primary" data-edit="${e.id}">Edit stop</button>
      <button class="btn danger" data-del="${e.id}">Delete</button>`);
+}
+
+/* ---------- notes: light formatting ----------
+   Notes are written in a small rich-text box (bold, italic, highlight,
+   bullets, numbers) and stored as HTML holding only those few tags, with
+   every attribute stripped, so pasted web content cannot carry scripts,
+   links or styles into the app. Notes written before this, as plain text,
+   are shown with their line breaks kept. */
+const NOTE_TAGS = { B: 'b', STRONG: 'b', I: 'i', EM: 'i', MARK: 'mark', UL: 'ul', OL: 'ol', LI: 'li', BR: 'br', DIV: 'div', P: 'div' };
+const isRichNote = t => /<(b|i|mark|ul|ol|li|br|div)\b/i.test(t || '');
+function cleanNote(html) {
+  const doc = new DOMParser().parseFromString(`<body>${html || ''}</body>`, 'text/html');
+  const walk = node => [...node.childNodes].map(n => {
+    if (n.nodeType === 3) return esc(n.textContent);
+    if (n.nodeType !== 1) return '';
+    const inner = walk(n);
+    const st = (n.getAttribute('style') || '').toLowerCase();
+    // Safari's highlight and bold arrive as styled spans.
+    if (n.tagName === 'SPAN' && /background/.test(st) && !/transparent|initial|inherit/.test(st)) return `<mark>${inner}</mark>`;
+    if (n.tagName === 'SPAN' && /font-weight:\s*(bold|[6-9]00)/.test(st)) return `<b>${inner}</b>`;
+    const tag = NOTE_TAGS[n.tagName];
+    if (!tag) return inner;                    // unknown element: keep its text only
+    return tag === 'br' ? '<br>' : `<${tag}>${inner}</${tag}>`;
+  }).join('');
+  const out = walk(doc.body).trim();
+  // An emptied box leaves "<br>" or "<div><br></div>" behind: that is no note.
+  return out.replace(/<[^>]+>/g, '').trim() ? out : '';
+}
+function noteHTML(t) {
+  if (!t) return '';
+  return isRichNote(t) ? cleanNote(t) : esc(t).replace(/\n/g, '<br>');
 }
 
 /* ---------- place suggestions ----------
@@ -1339,7 +1370,17 @@ function formHTML() {
     <div class="hint" id="f-total"></div></div>
 
   <div class="f"><label for="f-link">LINK</label><input id="f-link" type="url" value="${esc(f.link)}" placeholder="https://"></div>
-  <div class="f"><label for="f-notes">NOTES</label><textarea id="f-notes" placeholder="Anything worth remembering">${esc(f.notes)}</textarea></div>
+  <div class="f"><span class="legend" id="f-notes-label">NOTES</span>
+    <div class="notebar" role="toolbar" aria-label="Note formatting">
+      <button type="button" data-fmt="bold" aria-label="Bold"><b>B</b></button>
+      <button type="button" data-fmt="italic" aria-label="Italic"><i>I</i></button>
+      <button type="button" data-fmt="hilite" aria-label="Highlight"><mark>H</mark></button>
+      <button type="button" data-fmt="insertUnorderedList" aria-label="Bulleted list">•&#8201;List</button>
+      <button type="button" data-fmt="insertOrderedList" aria-label="Numbered list">1.&#8201;List</button>
+      <button type="button" data-fmt="removeFormat" aria-label="Clear formatting">Clear</button>
+    </div>
+    <div id="f-notes" class="note noteedit" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="f-notes-label"
+      data-placeholder="Anything worth remembering">${noteHTML(f.notes)}</div></div>
 
   <div class="f geobox">
     <div class="geostat" id="f-geostat">${placed ? 'PIN PLACED'
@@ -1366,7 +1407,7 @@ function readForm() {
   f.people = Math.max(0, Number($('#f-people').value) || 0);
   f.costPerPerson = Math.max(0, Number($('#f-cpp').value) || 0);
   f.link = $('#f-link').value.trim();
-  f.notes = $('#f-notes').value.trim();
+  f.notes = cleanNote($('#f-notes').innerHTML);
   f.needsReservation = $('#f-res').checked;
   if (f.needsReservation) {
     f.confirmation = $('#f-conf').value.trim();
@@ -1404,7 +1445,24 @@ function wireForm() {
       $('#f-ressub').hidden = !e.target.checked;
     }
   });
+  // A toolbar tap must not take the cursor out of the note box, or the
+  // format has nothing to apply to.
+  body.addEventListener('pointerdown', e => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });
+  body.addEventListener('mousedown', e => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });
   body.addEventListener('click', e => {
+    const fmt = e.target.closest('[data-fmt]');
+    if (fmt) {
+      const box = $('#f-notes');
+      if (document.activeElement !== box) box.focus();
+      const cmd = fmt.dataset.fmt;
+      if (cmd === 'hilite') {
+        // Toggle: an already highlighted selection is cleared.
+        const sel = getSelection();
+        const on = sel.anchorNode && sel.anchorNode.parentElement && sel.anchorNode.parentElement.closest('mark, span[style*="background"]');
+        document.execCommand('hiliteColor', false, on ? 'transparent' : '#FFF1A8');
+      } else document.execCommand(cmd, false, null);
+      return;
+    }
     const dayBtn = e.target.closest('[data-day]');
     if (dayBtn) {
       formState.day = dayBtn.dataset.day;
