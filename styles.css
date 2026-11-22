@@ -223,7 +223,9 @@ a{color:var(--link)}
    stations. */
 .stop + .stop{padding-top:14px}
 .stop:has(+ .stop) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:-14px;width:2px;background:var(--line)}
-.stop:has(+ .part-end:not(.empty)) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+/* :where() keeps this rule light, so the top below still drops the line to
+   the foot of the circle on a stop that is not first in its section. */
+.stop:where(:has(+ .part-end:not(.empty))) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
 .stop + .stop .marker::after{top:54px}
 
 /* ---------- weather and parts of the day ---------- */
