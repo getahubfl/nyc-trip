@@ -128,8 +128,9 @@ function hasLoc(e) { return Number.isFinite(e.lat) && Number.isFinite(e.lng); }
 const MIDTOWN = '40.7580,-73.9855';
 const near = e => hasLoc(e) ? e.lat + ',' + e.lng : MIDTOWN;
 // Instagram and Yelp for a stop: the saved link when there is one (an
-// Instagram @handle becomes its profile), otherwise, for a place, a search by
-// its name. Only http(s) links are ever used.
+// Instagram @handle becomes its profile). With no Yelp link, a place searches
+// Yelp by its name. Instagram has no such fallback: the app drops a search
+// link on Explore and ignores the words. Only http(s) links are ever used.
 const webLink = u => /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/[^\s"'<>]*)?$/i.test(u) ? 'https://' + u : '';
 function socialLinks(e) {
   const name = e.placeName || e.title || '';
@@ -141,7 +142,7 @@ function socialLinks(e) {
   const igUrl = handle ? `https://www.instagram.com/${handle}/` : webLink(ig);
   const q = encodeURIComponent(name.replace(/\s*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?/gu, '').trim());
   return {
-    instagram: igUrl || (place ? `https://www.instagram.com/explore/search/keyword/?q=${q}` : ''),
+    instagram: igUrl,
     yelp: webLink(yp) || (place ? `https://www.yelp.com/search?find_desc=${q}&find_loc=${encodeURIComponent('New York, NY')}` : ''),
   };
 }
@@ -1541,7 +1542,7 @@ function formHTML() {
     <input id="f-ig" type="text" value="${esc(f.instagram || '')}" placeholder="@handle or link" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="f"><label for="f-yelp">YELP</label>
     <input id="f-yelp" type="url" value="${esc(f.yelp || '')}" placeholder="yelp.com/biz/…" autocapitalize="off" autocorrect="off">
-    <div class="hint">Left empty, a place searches Instagram and Yelp by its name.</div></div>` : ''}
+    <div class="hint">Left empty, Yelp searches by the place's name. Instagram shows only with a handle or link.</div></div>` : ''}
   <div class="f"><span class="legend" id="f-notes-label">NOTES</span>
     <div class="notebar" role="toolbar" aria-label="Note formatting">
       <button type="button" data-fmt="bold" aria-label="Bold"><b>B</b></button>
