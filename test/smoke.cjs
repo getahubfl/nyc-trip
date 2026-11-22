@@ -511,8 +511,8 @@ window.maplibregl = {
     const base = { day: '2026-11-25', duration_min: 60, status: 'confirmed', category: 'sights', people: 2, cost_per_person: 0, extras: [],
       needs_reservation: false, booked: false, geo_status: 'manual', map_kind: 'place', place_name: '' };
     window.__rows.length = 0;
-    window.__rows.push({ ...base, id: 'leg-a', time: '15:00', title: 'Hotel', lat: 40.7645, lng: -73.9830 },
-                       { ...base, id: 'leg-b', time: '16:30', title: 'Levain', lat: 40.7813, lng: -73.9797 });
+    window.__rows.push({ ...base, id: 'leg-a', time: '15:00', title: 'Hotel', address: '237 W 54th St', lat: 40.7645, lng: -73.9830 },
+                       { ...base, id: 'leg-b', time: '16:30', title: 'Levain', address: '351 Amsterdam Ave', lat: 40.7813, lng: -73.9797 });
     await window.Data.load();
     window.S.day = '2026-11-25'; window.S.toBookOnly = false;
   });
@@ -524,24 +524,14 @@ window.maplibregl = {
   ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
   ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
   ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
-  ok('the leg says it can be tapped', (await q.locator('.leg .legcta').first().innerText()).startsWith('Show routes'));
+  ok('the trip here sits inside the card, under the name and above the map link', await q.evaluate(() => {
+    const card = document.querySelectorAll('.stop .card')[1], kids = [...card.children].map(k => k.className);
+    return kids.indexOf('leg') === kids.indexOf('when') + 2 && kids.indexOf('leg') < kids.indexOf('where'); }));
+  ok('no routes button', await q.locator('.legcta').count() === 0);
 
   console.log('\n— ROUTES ON THE MAP —');
   const lineLen = id => q.evaluate(i => { const d = window.__map._src[i].data; return d.features.map(f => f.geometry.coordinates.length); }, id);
   ok('the map draws the walking route along streets, not a straight line', JSON.stringify(await lineLen('route')) === '[4]', JSON.stringify(await lineLen('route')));
-  ok('no leg detail until a leg is tapped', (await lineLen('legcar')).length === 0 && await q.locator('#legKey[hidden]').count() === 1);
-  await q.locator('.leg').first().click();
-  await q.waitForTimeout(300);
-  ok('tapping a leg shows walk, car and subway with a key',
-     (await lineLen('legwalk')).length === 1 && (await lineLen('legcar')).length === 1 && (await lineLen('legsub')).length === 1 &&
-     await q.locator('#legKey:not([hidden])').count() === 1, JSON.stringify([await lineLen('legwalk'), await lineLen('legcar'), await lineLen('legsub')]));
-  ok('the day route steps aside for the tapped leg', (await lineLen('route')).length === 0);
-  ok('the subway trip includes the walks to and from the train', (await lineLen('legsubwalk')).length === 2);
-  ok('a dot at each end of each path', await q.evaluate(() => window.__map._src.legends.data.features.length) === 6);
-  ok('the tapped leg offers to hide the routes', (await q.locator('.leg.on .legcta').innerText()) === 'Hide routes');
-  await q.locator('#legKeyClose').click();
-  await q.waitForTimeout(300);
-  ok('closing the key brings the day route back', JSON.stringify(await lineLen('route')) === '[4]' && await q.locator('#legKey[hidden]').count() === 1);
   // Reordering: move the second stop before the first and the legs follow.
   await q.evaluate(async () => { const r = window.__rows.find(x => x.id === 'leg-b'); r.time = '14:00'; await window.Data.load(); });
   await q.locator('#rail [data-day="2026-11-25"]').click();

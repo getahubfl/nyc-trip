@@ -214,7 +214,6 @@ const S = {
   toBookOnly: false,
   filtersOpen: false,
   selected: null,
-  focusLeg: null,   // [fromId, toId] while a leg is tapped
   session: null,
   online: true
 };
@@ -419,28 +418,12 @@ const Map_ = {
     }));
 
     this.map.on('load', () => {
-      /* A: the walking route along real streets between each pair of stops
-         on the same day. B: walk, car and subway for one leg, shown while
-         that leg is tapped in the list. Static picture, not navigation. */
-      const empty = { type: 'FeatureCollection', features: [] };
+      /* The walking route along real streets between each pair of stops on
+         the same day. Static picture, not navigation. */
       const round = { 'line-cap': 'round', 'line-join': 'round' };
-      ['route', 'legcar', 'legsub', 'legsubwalk', 'legwalk', 'legends'].forEach(id => this.map.addSource(id, { type: 'geojson', data: empty }));
+      this.map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: round,
         paint: { 'line-color': '#111111', 'line-width': 2.6, 'line-opacity': 0.8 } });
-      this.map.addLayer({ id: 'legcar-case', type: 'line', source: 'legcar', layout: round,
-        paint: { 'line-color': '#6B5B00', 'line-width': 4, 'line-opacity': 0.55 } });
-      this.map.addLayer({ id: 'legcar', type: 'line', source: 'legcar', layout: round,
-        paint: { 'line-color': '#FCCC0A', 'line-width': 2.2 } });
-      this.map.addLayer({ id: 'legsub', type: 'line', source: 'legsub', layout: round,
-        paint: { 'line-color': '#0A62C9', 'line-width': 2.4 } });
-      this.map.addLayer({ id: 'legsubwalk', type: 'line', source: 'legsubwalk', layout: round,
-        paint: { 'line-color': '#0A62C9', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
-      this.map.addLayer({ id: 'legwalk', type: 'line', source: 'legwalk', layout: round,
-        paint: { 'line-color': '#111111', 'line-width': 2.4, 'line-dasharray': [0.4, 1.8] } });
-      // A small dot in the path's colour at each end of each path; for the
-      // subway, the stations where the train is boarded and left.
-      this.map.addLayer({ id: 'legends', type: 'circle', source: 'legends',
-        paint: { 'circle-radius': 4, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 1.5 } });
       // MapLibre opens the compact credits expanded, a wide box across the
       // bottom of a phone-sized map. Start it folded to its (i) button.
       document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show').forEach(el => {
@@ -497,49 +480,11 @@ const Map_ = {
     const fc = lines => ({ type: 'FeatureCollection',
       features: lines.filter(c => c && c.length > 1).map(c => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: c } })) });
     const straight = (a, b) => [[a.lng, a.lat], [b.lng, b.lat]];
-    const leg = S.focusLeg && list.find(e => e.id === S.focusLeg[0]) && list.find(e => e.id === S.focusLeg[1])
-      ? [list.find(e => e.id === S.focusLeg[0]), list.find(e => e.id === S.focusLeg[1])] : null;
-    if (S.focusLeg && !leg) S.focusLeg = null;
-    $('#legKey').hidden = !leg;
-
     const pairs = [];
-    if (!leg && !S.toBookOnly) for (let i = 0; i < list.length - 1; i++) if (list[i].day === list[i + 1].day) pairs.push([list[i], list[i + 1]]);
+    if (!S.toBookOnly) for (let i = 0; i < list.length - 1; i++) if (list[i].day === list[i + 1].day) pairs.push([list[i], list[i + 1]]);
     // Where there is no walking route (from the airport), the car route.
     this.map.getSource('route').setData(fc(pairs.map(([a, b]) =>
       (Route.get('walk', a, b) || {}).path || (Route.get('car', a, b) || {}).path || straight(a, b))));
-
-    const [a, b] = leg || [];
-    const r = mode => leg ? Route.get(mode, a, b) : null;
-    this.map.getSource('legwalk').setData(fc(leg ? [(r('walk') || {}).path || straight(a, b)] : []));
-    this.map.getSource('legcar').setData(fc(leg && r('car') ? [r('car').path] : []));
-    const sub = leg && r('sub') && !r('sub').none ? r('sub') : null;
-    this.map.getSource('legsub').setData(fc(sub && sub.paths ? sub.paths : []));
-    this.map.getSource('legsubwalk').setData(fc(sub && sub.walks ? sub.walks : []));
-
-    const ends = [];
-    const mark = (path, color) => { if (path && path.length > 1) ends.push([path[0], color], [path[path.length - 1], color]); };
-    if (leg) {
-      mark((r('walk') || {}).path, '#111111');
-      mark((r('car') || {}).path, '#FCCC0A');
-      (sub && sub.paths || []).forEach(p => mark(p, '#0A62C9'));
-    }
-    this.map.getSource('legends').setData({ type: 'FeatureCollection', features: ends.map(([c, color]) =>
-      ({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: c } })) });
-  },
-
-  // Frame one leg: both stops and every line drawn for it.
-  fitLeg(a, b) {
-    if (!this.ready) return;
-    const pts = [[a.lng, a.lat], [b.lng, b.lat]];
-    for (const mode of ['walk', 'car', 'sub']) {
-      const r = Route.get(mode, a, b);
-      if (r && r.path) pts.push(...r.path);
-      if (r && r.paths) r.paths.forEach(p => pts.push(...p));
-      if (r && r.walks) r.walks.forEach(p => pts.push(...p));
-    }
-    const bounds = new maplibregl.LngLatBounds();
-    pts.forEach(p => bounds.extend(p));
-    this.map.fitBounds(bounds, { padding: { top: 90, bottom: 50, left: 50, right: 50 }, maxZoom: 16, duration: 600 });
   },
 
   fit(list) {
@@ -799,6 +744,14 @@ function renderList() {
         locBit = `<div class="noloc">No location yet — add coordinates</div>`;
       }
     }
+    /* The trip here from the stop before, on the same day, inside this card:
+       time, name, then how to get here, then the map link, then the tags.
+       In the whole-trip view the stop before may be yesterday's. */
+    const prev = list[i - 1];
+    const from = !S.toBookOnly && prev && prev.day === e.day && placed && hasLoc(prev) ? prev : null;
+    if (from) legs.push([from, e]);
+    const legBit = from ? `<div class="leg" data-leg="${Route.key(from, e)}" data-from="${from.id}" data-to="${e.id}">${legHTML(from, e)}</div>` : '';
+
     const res = e.needsReservation
       ? `<span class="tag ${e.booked ? 'booked' : 'unbooked'}">${e.booked ? 'Booked' : 'Not booked'}</span>`
       : '';
@@ -813,20 +766,13 @@ function renderList() {
         ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}
         <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
+        ${legBit}
         ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
     </div>`;
 
-    // Legs only make sense between consecutive stops on the SAME day. In the
-    // whole-trip view the next stop may be tomorrow morning.
-    const nxt = list[i + 1];
-    if (!S.toBookOnly && nxt && nxt.day === e.day && placed && hasLoc(nxt)) {
-      const on = S.focusLeg && S.focusLeg[0] === e.id && S.focusLeg[1] === nxt.id;
-      html += `<button class="leg${on ? ' on' : ''}" data-leg="${Route.key(e, nxt)}" data-from="${e.id}" data-to="${nxt.id}" aria-pressed="${!!on}">${legHTML(e, nxt)}</button>`;
-      legs.push([e, nxt]);
-    }
   });
   // The parts of the day after the last stop still show their weather.
   if (byPart && curPart) {
@@ -973,11 +919,9 @@ function legHTML(a, b) {
   const chip = (mode, r, label) => r === null ? ''
     : `<span class="mode" title="${label}">${ICON[mode]}${r === undefined ? '…' : esc(fmtMin(r.min))}`
       + (mode === 'sub' && r && r.lines && r.lines.length ? `<i>${r.lines.map(esc).join(' › ')}</i>` : '') + `</span>`;
-  const on = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
   return `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`
     + `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
-    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`
-    + `<span class="legcta">${on ? 'Hide routes' : 'Show routes ›'}</span>`;
+    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`;
 }
 // The same, as one line of plain text, for the stop detail sheet.
 function legPlain(a, b) {
@@ -1743,7 +1687,7 @@ async function saveForm() {
 document.addEventListener('click', async e => {
   const dayBtn = e.target.closest('#rail [data-day]');
   if (dayBtn) {
-    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null; S.focusLeg = null;
+    S.day = dayBtn.dataset.day; S.toBookOnly = false; S.selected = null;
     render(); Map_.fit(); return;
   }
 
@@ -1766,23 +1710,6 @@ document.addEventListener('click', async e => {
   if (e.target.closest('#tobook')) { S.toBookOnly = !S.toBookOnly; S.selected = null; render(); Map_.fit(); return; }
 
   if (e.target.closest('#budget')) { openBudget(); return; }
-
-  // Tap a leg: the map shows walk, car and subway for it. Tap it again, or
-  // the key's close button, to go back to the day's walking route.
-  const legBtn = e.target.closest('.leg[data-from]');
-  if (legBtn) {
-    const a = S.events.find(x => x.id === legBtn.dataset.from), b = S.events.find(x => x.id === legBtn.dataset.to);
-    const same = S.focusLeg && S.focusLeg[0] === a.id && S.focusLeg[1] === b.id;
-    S.focusLeg = same ? null : [a.id, b.id];
-    renderList();
-    Map_.drawRoutes();
-    if (S.focusLeg) {
-      Map_.fitLeg(a, b);
-      $('#mapWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else Map_.fit();
-    return;
-  }
-  if (e.target.closest('#legKeyClose')) { S.focusLeg = null; renderList(); Map_.drawRoutes(); Map_.fit(); return; }
 
   const bcat = e.target.closest('[data-bcat]');
   if (bcat) {
