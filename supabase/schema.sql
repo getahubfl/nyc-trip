@@ -92,6 +92,9 @@ create table if not exists public.events (
   place_name        text not null default '',
   -- Who it is for: 'group' (everyone) or 'yours' (Paris and Megan). Optional.
   party             text check (party in ('group','yours')),
+  -- Exact Instagram (link or @handle) and Yelp links. Empty: a place searches by name.
+  instagram         text not null default '',
+  yelp              text not null default '',
 
   -- bookkeeping
   created_at        timestamptz not null default now(),
@@ -105,6 +108,8 @@ create index if not exists events_day_time_idx on public.events (day, time);
 alter table public.events add column if not exists map_kind text check (map_kind in ('place','spot'));
 alter table public.events add column if not exists place_name text not null default '';
 alter table public.events add column if not exists party text check (party in ('group','yours'));
+alter table public.events add column if not exists instagram text not null default '';
+alter table public.events add column if not exists yelp text not null default '';
 
 -- Keep updated_at honest, and record who touched it last.
 create or replace function public.touch_event()
