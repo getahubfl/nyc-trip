@@ -532,6 +532,9 @@ window.maplibregl = {
   ok('car time at Manhattan traffic speed, not empty streets', leg.includes('13 min'), leg);
   ok('subway: the fastest trip that uses the subway, with its lines', leg.includes('16 min') && leg.includes('D › 1'), leg);
   ok('three mode icons on the card', await q.locator('.leg .mode svg').count() === 3);
+  ok('icons and times sit above the distance', await q.evaluate(() => {
+    const l = document.querySelector('.leg');
+    return l.firstElementChild.className === 'modes' && l.querySelector('.modes').getBoundingClientRect().bottom <= l.querySelector('.dist').getBoundingClientRect().top; }));
   ok('the trip here sits inside the card, under the name and above the map link', await q.evaluate(() => {
     const card = document.querySelectorAll('.stop .card')[1], kids = [...card.children].map(k => k.className);
     return kids.indexOf('leg') === kids.indexOf('when') + 2 && kids.indexOf('leg') < kids.indexOf('where'); }));

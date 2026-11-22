@@ -919,9 +919,10 @@ function legHTML(a, b) {
   const chip = (mode, r, label) => r === null ? ''
     : `<span class="mode" title="${label}">${ICON[mode]}${r === undefined ? '…' : esc(fmtMin(r.min))}`
       + (mode === 'sub' && r && r.lines && r.lines.length ? `<i>${r.lines.map(esc).join(' › ')}</i>` : '') + `</span>`;
-  return `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`
-    + `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
-    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`;
+  // Times by mode first, the distance beneath.
+  return `<span class="modes">${chip('walk', walk, 'Walking')}${chip('car', car, 'By car')}`
+    + `${sub && sub.none ? '' : chip('sub', sub, 'By subway')}</span>`
+    + `<span class="dist">${dist} · about ${blocks} block${blocks === 1 ? '' : 's'}</span>`;
 }
 // The same, as one line of plain text, for the stop detail sheet.
 function legPlain(a, b) {
@@ -933,8 +934,8 @@ function legPlain(a, b) {
 
 /* ============================================================
    WEATHER — Open-Meteo (api.open-meteo.com): free, no key, hourly forecasts
-   up to 16 days out. Fetched once per calendar day on the phone and kept,
-   so it refreshes by itself the first time the app opens each morning.
+   up to 16 days out. Refreshed every 3 hours and before each part of the day
+   (see WX_EVERY and WX_BEFORE below).
    ============================================================ */
 const WX_KEY = 'nyc-trip-weather:v1';
 const PARTS = [
