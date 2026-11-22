@@ -177,6 +177,11 @@ sheet/detail/form → global event handling → auth gate → boot.
   most every 5 minutes) `checkForUpdate` compares it with its own `?v=` and,
   if newer, reloads at `?v=<new>`, an address the phone has not cached. Never
   mid-edit, once per version (so a stale page cannot loop), never locally.
+- **The notes toolbar keeps the selection itself.** Safari on an iPhone can
+  drop or collapse the selection when a toolbar button is tapped, so the editor
+  remembers the last selection in the notes box (`noteRange`, and `tapRange`
+  as the finger lands) and puts it back before formatting, only when it was
+  lost: restoring a live selection would undo Bold switched off mid-typing.
 - **Weather refreshes every 3 hours, and 30 minutes before each part of the
   day** (5:30am, 11:30am, 5:30pm New York time), so a part opens on a forecast
   made for it (`Weather`, `WX_EVERY`, `WX_BEFORE`). Checked on start, on return
@@ -236,7 +241,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 131 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 133 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:
