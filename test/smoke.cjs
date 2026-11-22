@@ -747,6 +747,15 @@ window.maplibregl = {
   await q.evaluate(() => window.openDetail('s2'));
   await q.waitForTimeout(300);
   ok('an exact spot gets no search links', await q.locator('.socials').count() === 0);
+  await q.evaluate(async () => {
+    window.__rows.push({ ...window.__rows.find(r => r.id === 's1'), id: 's3', time: '09:00', title: 'JFK', place_name: 'JFK Airport', category: 'travel', address: 'JFK' });
+    await window.Data.load(); window.openDetail('s3');
+  });
+  await q.waitForTimeout(300);
+  ok('a travel stop gets no search links', await q.locator('.socials').count() === 0);
+  await q.evaluate(async () => { window.__rows.find(r => r.id === 's3').yelp = 'https://www.yelp.com/biz/jfk'; await window.Data.load(); window.openDetail('s3'); });
+  await q.waitForTimeout(300);
+  ok('but shows a link saved on it', await q.locator('.socials a').count() === 1);
   await q.evaluate(() => window.openForm('s1'));
   await q.waitForTimeout(300);
   await q.locator('#f-ig').fill('@keenssteakhouse');

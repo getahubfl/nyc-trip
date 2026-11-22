@@ -145,7 +145,7 @@ npm install          # playwright
 node test/smoke.cjs
 ```
 
-Runs fully offline against stubs. 142 assertions.
+Runs fully offline against stubs. 144 assertions.
 
 ## Attribution
 
