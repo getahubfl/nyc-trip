@@ -774,11 +774,16 @@ function renderList() {
       html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i>${wxPill(Weather.day(e.day))}</div>`;
     }
     if (byPart && partOf(e) !== curPart) {
-      // Name every part up to this one, so an empty morning still shows.
+      // Close the part just finished, then name every part up to this one,
+      // so an empty morning still shows with its weather.
+      if (curPart) html += partEnd(list.filter(x => partOf(x) === curPart));
       const from = curPart === undefined ? 0 : PARTS.indexOf(curPart) + 1;
       const to = partOf(e) ? PARTS.indexOf(partOf(e)) : PARTS.length - 1;
-      for (let k = from; k <= to; k++) html += partHeader(S.day, PARTS[k]);
-      if (!partOf(e)) html += `<div class="part"><span>Anytime</span></div>`;
+      for (let k = from; k <= to; k++) {
+        html += partHeader(S.day, PARTS[k]);
+        if (k < to || !partOf(e)) html += partEnd([]);
+      }
+      if (!partOf(e)) html += `<div class="part"><span>Anytime<small>no start time</small></span></div>`;
       curPart = partOf(e);
     }
 
@@ -805,7 +810,8 @@ function renderList() {
     html += `<div class="stop">
       <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${num}</div>
       <div class="card">
-        <div class="when"><span>${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</span>${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}</div>
+        ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}
+        <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
         ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
@@ -823,7 +829,10 @@ function renderList() {
     }
   });
   // The parts of the day after the last stop still show their weather.
-  if (byPart && curPart) for (let k = PARTS.indexOf(curPart) + 1; k < PARTS.length; k++) html += partHeader(S.day, PARTS[k]);
+  if (byPart && curPart) {
+    html += partEnd(list.filter(x => partOf(x) === curPart));
+    for (let k = PARTS.indexOf(curPart) + 1; k < PARTS.length; k++) html += partHeader(S.day, PARTS[k]) + partEnd([]);
+  }
   el.innerHTML = html;
   legs.forEach(([a, b]) => Route.request(a, b));
 }
@@ -985,9 +994,9 @@ function legPlain(a, b) {
    ============================================================ */
 const WX_KEY = 'nyc-trip-weather:v1';
 const PARTS = [
-  { id: 'morning',   name: 'Morning',   from: 0,  to: 12 },   // stops before 6am count as morning
-  { id: 'afternoon', name: 'Afternoon', from: 12, to: 18 },
-  { id: 'night',     name: 'Night',     from: 18, to: 24 }
+  { id: 'morning',   name: 'Morning',   from: 0,  to: 12, hours: '6am–12pm' },   // stops before 6am count as morning
+  { id: 'afternoon', name: 'Afternoon', from: 12, to: 18, hours: '12–6pm' },
+  { id: 'night',     name: 'Night',     from: 18, to: 24, hours: '6pm–12am' }
 ];
 const Weather = {
   data: null, loading: false,
@@ -1051,9 +1060,19 @@ function wxPill(w) {
 }
 function partHeader(dayId, p) {
   const w = Weather.part(dayId, p);
-  return `<div class="part"><span>${p.name}</span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}${w.rain >= 30 ? `<i>${w.rain}% rain</i>` : ''}</span>` : ''}</div>`;
+  return `<div class="part"><span>${p.name}<small>${p.hours}</small></span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}${w.rain >= 30 ? `<i>${w.rain}% rain</i>` : ''}</span>` : ''}</div>`;
 }
 const partOf = e => e.time ? PARTS.find(p => +e.time.slice(0, 2) < p.to) : null;
+// The close of a part of the day: how many stops, and from the first start
+// to the last finish.
+function partEnd(stops) {
+  if (!stops.length) return `<div class="part-end"><span>Nothing planned</span></div>`;
+  const mins = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
+  const start = mins(stops[0].time);
+  const end = Math.max(...stops.map(e => mins(e.time) + (Number(e.durationMin) || 0)));
+  const clock = m => fmtTime(String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+  return `<div class="part-end"><span>${stops.length} stop${stops.length === 1 ? '' : 's'} · ${clock(start)}–${clock(end)}</span></div>`;
+}
 
 function render() {
   renderRail();
