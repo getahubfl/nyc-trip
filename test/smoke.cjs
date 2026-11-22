@@ -136,7 +136,7 @@ window.maplibregl = {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({
         daily: { time: days, temperature_2m_max: [52, 55, 50, 48], temperature_2m_min: [41, 45, 40, 38], weather_code: [3, 61, 1, 0] },
         hourly: { time: days.flatMap(d => Array.from({ length: 24 }, (_, h) => `${d}T${String(h).padStart(2, '0')}:00`)),
-          temperature_2m: Array(96).fill(47), weather_code: Array(96).fill(3), precipitation_probability: Array(96).fill(10) } }) });
+          temperature_2m: Array(96).fill(47), weather_code: Array(96).fill(3), precipitation_probability: Array(96).fill(0) } }) });
     }
     if (url.includes('nominatim')) return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify([{ lat: '40.7223', lon: '-73.9874', display_name: 'stubbed match, New York' }]) });
@@ -689,6 +689,15 @@ window.maplibregl = {
   ok('the forecast was fetched on sign-in', wxHits >= 1, wxHits);
   const stamp = await q.locator('.daytitle .wx-at').innerText().catch(() => '');
   ok('the time it was fetched shows under the day\'s weather', /^Refreshed \d{1,2}:\d{2}(am|pm)$/.test(stamp), stamp);
+  await q.evaluate(async () => {
+    window.__rows.push({ id: 'wx1', day: '2026-11-26', time: '09:00', duration_min: 60, title: 'Rain check', category: 'other', status: 'confirmed',
+      people: 2, cost_per_person: 0, extras: [], needs_reservation: false, booked: false, lat: 40.76, lng: -73.98, geo_status: 'manual', map_kind: 'spot', notes: '' });
+    await window.Data.load();
+  });
+  await q.locator('#rail [data-day="2026-11-26"]').click();
+  await q.waitForTimeout(300);
+  const partWx = await q.locator('.part-wx').allInnerTexts();
+  ok('every section shows its chance of rain, even 0%', partWx.length > 0 && partWx.every(x => /\d+% rain/.test(x)), JSON.stringify(partWx));
   let wh = wxHits;
   await q.evaluate(() => window.Weather.load());
   await q.waitForTimeout(200);
