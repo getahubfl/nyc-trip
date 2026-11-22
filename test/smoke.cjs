@@ -2,7 +2,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const ROOT = require('path').resolve(__dirname, '..');
 
-let pass = 0, fail = 0;
+let wxHits = 0, pass = 0, fail = 0;
 const ok = (n, c, x = '') => { if (c) { pass++; console.log('  PASS  ' + n); } else { fail++; console.log('  FAIL  ' + n + (x ? ' :: ' + x : '')); } };
 
 // A fake @supabase/supabase-js: in-memory table, fake auth, fake realtime channel.
@@ -130,6 +130,14 @@ window.maplibregl = {
     if (url.includes('photon.komoot.io')) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ features: [
         { properties: { name: 'Quality Italian', housenumber: '57', street: 'West 57th Street' }, geometry: { coordinates: [-73.97677, 40.76457] } }] }) }); }
+    if (url.includes('api.open-meteo.com')) {
+      wxHits++;
+      const days = ['2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28'];
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+        daily: { time: days, temperature_2m_max: [52, 55, 50, 48], temperature_2m_min: [41, 45, 40, 38], weather_code: [3, 61, 1, 0] },
+        hourly: { time: days.flatMap(d => Array.from({ length: 24 }, (_, h) => `${d}T${String(h).padStart(2, '0')}:00`)),
+          temperature_2m: Array(96).fill(47), weather_code: Array(96).fill(3), precipitation_probability: Array(96).fill(10) } }) });
+    }
     if (url.includes('nominatim')) return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify([{ lat: '40.7223', lon: '-73.9874', display_name: 'stubbed match, New York' }]) });
     return route.abort();
@@ -638,6 +646,33 @@ window.maplibregl = {
      && (await q.locator('dd.note').innerText()).includes('link'));
   await q.locator('#closeSheet').click();
   await q.waitForTimeout(300);
+
+  console.log('\n— WEATHER REFRESH —');
+  await q.evaluate(() => { window.S.day = '2026-11-26'; });
+  await q.locator('#rail [data-day="2026-11-26"]').click();
+  await q.waitForTimeout(300);
+  ok('the forecast was fetched on sign-in', wxHits >= 1, wxHits);
+  const stamp = await q.locator('.daytitle .wx-at').innerText().catch(() => '');
+  ok('the time it was fetched shows under the day\'s weather', /^Refreshed \d{1,2}:\d{2}(am|pm)$/.test(stamp), stamp);
+  let wh = wxHits;
+  await q.evaluate(() => window.Weather.load());
+  await q.waitForTimeout(200);
+  ok('a fresh forecast is not fetched again', wxHits === wh, wxHits - wh);
+  await q.evaluate(() => { window.Weather.at = Date.now() - 3 * 3600e3 - 1000; return window.Weather.load(); });
+  await q.waitForTimeout(300);
+  ok('after 3 hours it is fetched again', wxHits === wh + 1 && await q.evaluate(() => Date.now() - window.Weather.at < 60e3), wxHits - wh);
+  const ny = (hm) => Date.parse(`2026-11-26T${hm}:00-05:00`);
+  const stale = (a, n) => q.evaluate(([a, n]) => { const w = window.Weather, keep = w.at; w.at = a; const r = w.stale(n); w.at = keep; return r; }, [ny(a), ny(n)]);
+  ok('a forecast from before 11:30 is refreshed at 11:30, however young', await stale('11:20', '11:35') === true);
+  ok('and the same before 5:30am and 5:30pm', await stale('05:10', '05:31') === true && await stale('17:15', '17:30') === true);
+  ok('within a stretch and under 3 hours it stands', await stale('11:35', '14:20') === false && await stale('05:00', '05:20') === false);
+  const due = (a) => q.evaluate(a => { const w = window.Weather, keep = w.at; w.at = a; const r = w.due(); w.at = keep; return r; }, ny(a));
+  ok('the next refresh is the sooner of 3 hours or the next 30-minutes-before',
+     await due('11:00') === ny('11:30') && await due('12:00') === ny('15:00') && await due('16:00') === ny('17:30'));
+  wh = wxHits;
+  await q.evaluate(() => { window.Weather.at = Date.now() - 4 * 3600e3; document.dispatchEvent(new Event('visibilitychange')); });
+  await q.waitForTimeout(300);
+  ok('coming back to the app catches up a missed refresh', wxHits === wh + 1, wxHits - wh);
 
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });

@@ -683,7 +683,7 @@ function renderList() {
              <p>${S.events.length ? 'Every stop is filtered out — widen the category filter.' : 'No stops on the trip yet.'}</p>
              <button class="btn primary inline" data-new="1">Add the first stop</button>
            </div>`
-        : `<div class="daytitle">${esc(d.label)}</div>
+        : `<div class="daytitle">${esc(d.label)}${wxStamped(Weather.day(S.day))}</div>
            <div class="empty"><h3>Nothing here yet</h3>
              <p>${S.events.some(e => e.day === S.day) ? 'Every stop on this day is filtered out.' : 'This day is wide open.'}</p>
              <button class="btn primary inline" data-new="1">Add the first stop</button>
@@ -695,7 +695,7 @@ function renderList() {
     ? `<div class="daytitle">Still to book · ${list.length}</div>`
     : allDays
       ? `<div class="daytitle">The whole trip · ${list.length} stop${list.length === 1 ? '' : 's'}</div>`
-      : `<div class="daytitle">${esc(d.label)}${wxPill(Weather.day(S.day))}</div>`;
+      : `<div class="daytitle">${esc(d.label)}${wxStamped(Weather.day(S.day))}</div>`;
 
   // A single day is split into morning, afternoon and night, each headed
   // with its own forecast. Stops with no time follow, under "Anytime".
@@ -942,15 +942,46 @@ const PARTS = [
   { id: 'afternoon', name: 'Afternoon', from: 12, to: 18, hours: '12–6pm' },
   { id: 'night',     name: 'Night',     from: 18, to: 24, hours: '6pm–12am' }
 ];
+// Weather refreshes every 3 hours, and afresh 30 minutes before each part of
+// the day starts (5:30am, 11:30am, 5:30pm New York time), so a part opens on
+// a forecast made for it. Checked on start, on return to the app, and by a
+// timer while it stays open. Each check is one request for all four days.
+const WX_EVERY = 3 * 60 * 60 * 1000;
+const WX_BEFORE = [330, 690, 1050];   // minutes past midnight in New York
+function nyClock(ms) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, min: +p.hour * 60 + +p.minute };
+}
+// Which stretch between refresh points a moment falls in. A forecast from an
+// earlier stretch is stale, however young.
+function wxSlot(ms) {
+  const c = nyClock(ms);
+  return c.day + ':' + WX_BEFORE.filter(m => c.min >= m).length;
+}
 const Weather = {
-  data: null, loading: false,
-  today() { return new Date().toLocaleDateString('en-CA'); },
+  data: null, at: 0, loading: false, timer: 0,
+  stale(now = Date.now()) { return !this.at || now - this.at >= WX_EVERY || wxSlot(this.at) !== wxSlot(now); },
+  // When the next refresh falls due: 3 hours on, or the next refresh point.
+  due() {
+    let t = this.at + WX_EVERY;
+    const c = nyClock(this.at), next = WX_BEFORE.find(m => m > c.min);
+    const toPoint = ((next !== undefined ? next : WX_BEFORE[0] + 1440) - c.min) * 60000;
+    return Math.min(t, this.at - (this.at % 60000) + toPoint);
+  },
+  schedule() {
+    clearTimeout(this.timer);
+    if (this.at) this.timer = setTimeout(() => this.load(), Math.max(60000, this.due() - Date.now()));
+  },
   async load() {
-    try {
-      const v = JSON.parse(localStorage.getItem(WX_KEY));
-      if (v && v.on === this.today()) { this.data = v.data; return; }
-      if (v) this.data = v.data;   // yesterday's forecast until today's arrives
-    } catch (err) { /* no storage */ }
+    if (!this.data) {
+      try {
+        const v = JSON.parse(localStorage.getItem(WX_KEY));
+        if (v && v.data) { this.data = v.data; this.at = v.at || 0; }   // the last forecast shows until a new one lands
+      } catch (err) { /* no storage */ }
+    }
+    if (!this.stale()) { this.schedule(); return; }
     if (this.loading) return;
     this.loading = true;
     try {
@@ -962,11 +993,13 @@ const Weather = {
       const json = await res.json();
       if (json.daily && json.hourly) {
         this.data = { daily: json.daily, hourly: json.hourly };
-        try { localStorage.setItem(WX_KEY, JSON.stringify({ on: this.today(), data: this.data })); } catch (err) { /* no storage */ }
+        this.at = Date.now();
+        try { localStorage.setItem(WX_KEY, JSON.stringify({ at: this.at, data: this.data })); } catch (err) { /* no storage */ }
         render();
       }
     } catch (err) { console.warn('[weather]', err); }   // no pill is the fallback
     this.loading = false;
+    this.schedule();
   },
   day(id) {
     const d = this.data && this.data.daily, i = d ? d.time.indexOf(id) : -1;
@@ -1001,6 +1034,14 @@ const WX_ICON = {
 };
 function wxPill(w) {
   return w ? `<span class="wx">${WX_ICON[wxKind(w.code)]}${w.hi}°<i>/${w.lo}°</i></span>` : '';
+}
+// The day's pill with when the forecast was fetched beneath it, on this
+// phone's clock.
+function wxStamped(w) {
+  if (!w || !Weather.at) return wxPill(w);
+  const d = new Date(Weather.at), h = d.getHours();
+  const at = (h % 12 || 12) + ':' + String(d.getMinutes()).padStart(2, '0') + (h < 12 ? 'am' : 'pm');
+  return `<span class="wxbox">${wxPill(w)}<small class="wx-at">Refreshed ${at}</small></span>`;
 }
 function partHeader(dayId, p) {
   const w = Weather.part(dayId, p);
@@ -2242,11 +2283,16 @@ async function checkForUpdate() {
   location.replace(location.pathname + '?v=' + latest);
 }
 checkForUpdate();
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  checkForUpdate();
+  if (Weather.at || Weather.data) Weather.load();   // a phone asleep through a refresh point catches up on return
+});
 
 /* exposed for the console and for Claude Code's tests */
 window.S = S;
 window.Data = Data;
+window.Weather = Weather;
 window.Geo = Geo;
 window.openDetail = openDetail;
 window.openForm = openForm;
