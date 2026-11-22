@@ -177,6 +177,12 @@ sheet/detail/form → global event handling → auth gate → boot.
   most every 5 minutes) `checkForUpdate` compares it with its own `?v=` and,
   if newer, reloads at `?v=<new>`, an address the phone has not cached. Never
   mid-edit, once per version (so a stale page cannot loop), never locally.
+- **Weather refreshes every 3 hours, and 30 minutes before each part of the
+  day** (5:30am, 11:30am, 5:30pm New York time), so a part opens on a forecast
+  made for it (`Weather`, `WX_EVERY`, `WX_BEFORE`). Checked on start, on return
+  to the app and by a timer while open; one Open-Meteo request covers all four
+  days. The last forecast shows until a new one lands, with "Refreshed 2:40pm"
+  under the day's pill, on the phone's clock.
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -230,7 +236,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, the budget by category, notes formatting and highlight colours, and the desktop layout. 122 assertions, all
+coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 131 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

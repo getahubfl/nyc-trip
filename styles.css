@@ -234,6 +234,8 @@ a{color:var(--link)}
 .wx{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:5px 11px;border-radius:999px;background:var(--fill);
   font-size:14px;font-weight:700;letter-spacing:0;color:var(--ink);font-variant-numeric:tabular-nums}
 .wx i{font-style:normal;font-weight:500;color:var(--ink-3)}
+.wxbox{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto}
+.wx-at{font-size:11px;font-weight:500;letter-spacing:0;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .wx svg,.part-wx svg{width:17px;height:17px;fill:currentColor;flex:0 0 auto}
 .daybreak .wx{margin-left:auto;font-size:12.5px;padding:3px 9px}
 .daybreak .wx svg{width:14px;height:14px}
