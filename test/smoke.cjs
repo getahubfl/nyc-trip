@@ -741,9 +741,8 @@ window.maplibregl = {
   await q.evaluate(() => window.openDetail('s1'));
   await q.waitForTimeout(300);
   const sl = await q.evaluate(() => [...document.querySelectorAll('.d-row dd .socials a')].map(a => [a.textContent, a.getAttribute('href'), a.closest('.d-row').querySelector('dt').textContent]));
-  ok('a place with no links searches Instagram and Yelp by its name, under the address',
-     sl.length === 2 && sl[0][0] === 'Instagram' && sl[0][1] === 'https://www.instagram.com/explore/search/keyword/?q=Keens%20Steakhouse'
-     && sl[1][0] === 'Yelp' && sl[1][1].startsWith('https://www.yelp.com/search?find_desc=Keens%20Steakhouse&find_loc=New%20York') && sl.every(x => x[2] === 'ADDRESS'), JSON.stringify(sl));
+  ok('a place with no links searches Yelp by its name, under the address, and has no Instagram button',
+     sl.length === 1 && sl[0][0] === 'Yelp' && sl[0][1].startsWith('https://www.yelp.com/search?find_desc=Keens%20Steakhouse&find_loc=New%20York') && sl[0][2] === 'ADDRESS', JSON.stringify(sl));
   await q.evaluate(() => window.openDetail('s2'));
   await q.waitForTimeout(300);
   ok('an exact spot gets no search links', await q.locator('.socials').count() === 0);

@@ -190,8 +190,10 @@ sheet/detail/form → global event handling → auth gate → boot.
   under the day's pill, on the phone's clock.
 - **Instagram and Yelp sit under the address in the stop detail**, never on
   the card (`socialLinks`, `socialHTML`). A saved link wins; an Instagram
-  `@handle` opens the profile. With none saved, a place searches both by its
-  business name; an exact spot or a travel stop gets nothing. Only http(s) links are used. The
+  `@handle` opens the profile. With no Yelp link, a place searches Yelp by its
+  business name; an exact spot or a travel stop gets nothing. Instagram shows
+  only with a saved handle or link: the app opens a keyword-search link on
+  Explore and drops the words, so there is no Instagram search fallback. Only http(s) links are used. The
   `instagram` and `yelp` columns are detected like `party` (`hasSocialCols`).
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
