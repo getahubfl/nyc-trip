@@ -168,6 +168,7 @@ function fromRow(r) {
     geoResolved: r.geo_resolved || '',
     mapKind: r.map_kind || '',
     placeName: r.place_name || '',
+    party: r.party || '',
     updatedBy: r.updated_by || ''
   };
 }
@@ -195,7 +196,8 @@ function toRow(e) {
     geo_resolved: e.geoResolved || '',
     // Only once the columns exist: PostgREST refuses unknown columns, and a
     // refused write would roll back every save.
-    ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {})
+    ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {}),
+    ...(Data.hasPartyCol ? { party: e.party || null } : {})
   };
 }
 
@@ -225,6 +227,7 @@ const Data = {
   // map_kind and place_name arrive with a one-off schema change. Until they
   // exist the app neither writes them nor shows the place/spot switch.
   hasMapCols: false,
+  hasPartyCol: false,
 
   async load() {
     const { data, error } = await sb.from('events').select('*');
@@ -234,6 +237,11 @@ const Data = {
       const probe = await sb.from('events').select('map_kind', { head: true });
       this.hasMapCols = !probe.error;
     } catch (err) { this.hasMapCols = false; }
+    // party ('group' | 'yours') arrived after map_kind, with its own change.
+    try {
+      const probe = await sb.from('events').select('party', { head: true });
+      this.hasPartyCol = !probe.error;
+    } catch (err) { this.hasPartyCol = false; }
   },
 
   // Every open browser subscribes; any insert/update/delete lands here within
@@ -742,7 +750,12 @@ function renderList() {
     ? `<div class="daytitle">Still to book · ${list.length}</div>`
     : allDays
       ? `<div class="daytitle">The whole trip · ${list.length} stop${list.length === 1 ? '' : 's'}</div>`
-      : `<div class="daytitle">${esc(d.label)}</div>`;
+      : `<div class="daytitle">${esc(d.label)}${wxPill(Weather.day(S.day))}</div>`;
+
+  // A single day is split into morning, afternoon and night, each headed
+  // with its own forecast. Stops with no time follow, under "Anytime".
+  const byPart = !S.toBookOnly && !allDays;
+  let curPart;
 
   let pinIdx = 0;
   let curDay = null;
@@ -758,7 +771,15 @@ function renderList() {
     if (allDays && e.day !== curDay) {
       curDay = e.day;
       const cnt = list.filter(x => x.day === e.day).length;
-      html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i></div>`;
+      html += `<div class="daybreak"><span>${esc(dd ? dd.label : e.day)}</span><i>${cnt}</i>${wxPill(Weather.day(e.day))}</div>`;
+    }
+    if (byPart && partOf(e) !== curPart) {
+      // Name every part up to this one, so an empty morning still shows.
+      const from = curPart === undefined ? 0 : PARTS.indexOf(curPart) + 1;
+      const to = partOf(e) ? PARTS.indexOf(partOf(e)) : PARTS.length - 1;
+      for (let k = from; k <= to; k++) html += partHeader(S.day, PARTS[k]);
+      if (!partOf(e)) html += `<div class="part"><span>Anytime</span></div>`;
+      curPart = partOf(e);
     }
 
     const dayTag = S.toBookOnly && dd ? `<span class="tag">${dd.dow} ${dd.n}</span>` : '';
@@ -784,7 +805,7 @@ function renderList() {
     html += `<div class="stop">
       <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${num}</div>
       <div class="card">
-        <div class="when">${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</div>
+        <div class="when"><span>${esc(fmtTime(e.time) || 'Time TBD')}${e.durationMin ? ' · ' + fmtDur(e.durationMin) : ''}</span>${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}</div>
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
         ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
         <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
@@ -801,6 +822,8 @@ function renderList() {
       legs.push([e, nxt]);
     }
   });
+  // The parts of the day after the last stop still show their weather.
+  if (byPart && curPart) for (let k = PARTS.indexOf(curPart) + 1; k < PARTS.length; k++) html += partHeader(S.day, PARTS[k]);
   el.innerHTML = html;
   legs.forEach(([a, b]) => Route.request(a, b));
 }
@@ -954,6 +977,83 @@ function legPlain(a, b) {
   return [(walk.m / 1609.34).toFixed(walk.m < 1609 ? 2 : 1) + ' mi', 'walk ' + fmtMin(walk.min),
     car ? 'car ' + fmtMin(car.min) : '', sub && !sub.none ? 'subway ' + fmtMin(sub.min) : ''].filter(Boolean).join(' · ');
 }
+
+/* ============================================================
+   WEATHER — Open-Meteo (api.open-meteo.com): free, no key, hourly forecasts
+   up to 16 days out. Fetched once per calendar day on the phone and kept,
+   so it refreshes by itself the first time the app opens each morning.
+   ============================================================ */
+const WX_KEY = 'nyc-trip-weather:v1';
+const PARTS = [
+  { id: 'morning',   name: 'Morning',   from: 0,  to: 12 },   // stops before 6am count as morning
+  { id: 'afternoon', name: 'Afternoon', from: 12, to: 18 },
+  { id: 'night',     name: 'Night',     from: 18, to: 24 }
+];
+const Weather = {
+  data: null, loading: false,
+  today() { return new Date().toLocaleDateString('en-CA'); },
+  async load() {
+    try {
+      const v = JSON.parse(localStorage.getItem(WX_KEY));
+      if (v && v.on === this.today()) { this.data = v.data; return; }
+      if (v) this.data = v.data;   // yesterday's forecast until today's arrives
+    } catch (err) { /* no storage */ }
+    if (this.loading) return;
+    this.loading = true;
+    try {
+      const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=40.758&longitude=-73.9855'
+        + '&hourly=temperature_2m,weather_code,precipitation_probability'
+        + '&daily=temperature_2m_max,temperature_2m_min,weather_code'
+        + '&temperature_unit=fahrenheit&timezone=America%2FNew_York'
+        + `&start_date=${DAYS[0].id}&end_date=${DAYS[DAYS.length - 1].id}`);
+      const json = await res.json();
+      if (json.daily && json.hourly) {
+        this.data = { daily: json.daily, hourly: json.hourly };
+        try { localStorage.setItem(WX_KEY, JSON.stringify({ on: this.today(), data: this.data })); } catch (err) { /* no storage */ }
+        render();
+      }
+    } catch (err) { console.warn('[weather]', err); }   // no pill is the fallback
+    this.loading = false;
+  },
+  day(id) {
+    const d = this.data && this.data.daily, i = d ? d.time.indexOf(id) : -1;
+    return i < 0 ? null : { hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), code: d.weather_code[i] };
+  },
+  // The part of a day: its high and low, its wettest hour's chance of rain,
+  // and the most telling sky (rain beats cloud beats sun).
+  part(id, p) {
+    const h = this.data && this.data.hourly;
+    if (!h) return null;
+    const idx = h.time.map((t, i) => [t, i]).filter(([t]) => t.startsWith(id) && +t.slice(11, 13) >= Math.max(p.from, 6) && +t.slice(11, 13) < p.to).map(([, i]) => i);
+    if (!idx.length) return null;
+    const temps = idx.map(i => h.temperature_2m[i]);
+    return { hi: Math.round(Math.max(...temps)), lo: Math.round(Math.min(...temps)),
+      rain: Math.max(...idx.map(i => h.precipitation_probability[i] || 0)),
+      code: idx.map(i => h.weather_code[i]).sort((a, b) => wxRank(b) - wxRank(a))[0] };
+  }
+};
+function wxKind(code) {
+  if (code >= 95) return 'rain';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (code >= 51) return 'rain';
+  if (code >= 2) return 'cloud';
+  return 'sun';
+}
+const wxRank = code => ({ sun: 0, cloud: 1, rain: 2, snow: 3 })[wxKind(code)];
+const WX_ICON = {
+  sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 9.5a4.75 4.75 0 0 1-.5 9.5z"/></svg>',
+  rain: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 5.5a4.75 4.75 0 0 1-.5 9.5z"/><path d="M8 18l-1 3M12.5 18l-1 3M17 18l-1 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  snow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15a5 5 0 0 1-.6-10A6.5 6.5 0 0 1 19 5.5a4.75 4.75 0 0 1-.5 9.5z"/><circle cx="8" cy="19.5" r="1.4"/><circle cx="12.5" cy="20.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>'
+};
+function wxPill(w) {
+  return w ? `<span class="wx">${WX_ICON[wxKind(w.code)]}${w.hi}°<i>/${w.lo}°</i></span>` : '';
+}
+function partHeader(dayId, p) {
+  const w = Weather.part(dayId, p);
+  return `<div class="part"><span>${p.name}</span>${w ? `<span class="part-wx">${WX_ICON[wxKind(w.code)]}${w.lo === w.hi ? w.hi + '°' : w.lo + '–' + w.hi + '°'}${w.rain >= 30 ? `<i>${w.rain}% rain</i>` : ''}</span>` : ''}</div>`;
+}
+const partOf = e => e.time ? PARTS.find(p => +e.time.slice(0, 2) < p.to) : null;
 
 function render() {
   renderRail();
@@ -1165,7 +1265,7 @@ function openDetail(id) {
       </div>
     </div>
     <div class="tags d-tags">
-      <span class="tag">${c.name}</span>${statusTag(e)}
+      ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}<span class="tag">${c.name}</span>${statusTag(e)}
     </div>
     ${resHTML}
     ${(per || totalCost(e) || extras.length)
@@ -1288,7 +1388,7 @@ function openForm(id) {
     id: null, day: S.toBookOnly ? DAYS[0].id : S.day, title: '', address: '', category: 'sights',
     time: '', durationMin: 60, people: 4, costPerPerson: 0, extras: [], link: '', notes: '',
     status: 'confirmed', needsReservation: false, booked: false, confirmation: '',
-    reservationTime: '', lat: null, lng: null, geoStatus: 'idle', mapKind: '', placeName: ''
+    reservationTime: '', lat: null, lng: null, geoStatus: 'idle', mapKind: '', placeName: '', party: ''
   };
   sheetMode = 'form';
   openSheet(existing ? 'Edit stop' : 'New stop', formHTML(),
@@ -1317,6 +1417,12 @@ function formHTML() {
       <button type="button" class="pick" data-kind="spot" aria-pressed="${f.mapKind === 'spot'}">An exact spot</button>
     </div>
     <div class="hint">A place opens its card in Apple Maps, by name. An exact spot opens the pin — a parade corner, the start of a walk.</div></div>
+
+  <div class="f" ${Data.hasPartyCol ? '' : 'hidden'}><span class="legend">WHO</span>
+    <div class="pickrow" id="f-party">
+      <button type="button" class="pick" data-party="yours" aria-pressed="${f.party === 'yours'}">Yours</button>
+      <button type="button" class="pick" data-party="group" aria-pressed="${f.party === 'group'}">Group</button>
+    </div></div>
 
   <div class="f" id="f-placerow" ${f.mapKind === 'place' ? '' : 'hidden'}><label for="f-place">BUSINESS NAME</label>
     <input id="f-place" type="text" value="${esc(f.placeName)}" placeholder="Start typing — Quality Italian" autocomplete="off">
@@ -1469,6 +1575,13 @@ function wireForm() {
       [...$('#f-days').children].forEach(b => b.setAttribute('aria-pressed', b === dayBtn));
       return;
     }
+    const partyBtn = e.target.closest('[data-party]');
+    if (partyBtn) {
+      // Tapping the chosen one again clears it.
+      formState.party = formState.party === partyBtn.dataset.party ? '' : partyBtn.dataset.party;
+      [...$('#f-party').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.party === formState.party));
+      return;
+    }
     const kindBtn = e.target.closest('[data-kind]');
     if (kindBtn) {
       formState.mapKind = kindBtn.dataset.kind;
@@ -1547,7 +1660,7 @@ async function saveForm() {
     lat: prev ? prev.lat : null, lng: prev ? prev.lng : null,
     geoStatus: prev ? prev.geoStatus : 'idle',
     geoResolved: prev ? prev.geoResolved : '',
-    mapKind: f.mapKind, placeName: f.placeName
+    mapKind: f.mapKind, placeName: f.placeName, party: f.party || ''
   };
 
   // hand-typed coordinates always win over the lookup
@@ -2057,6 +2170,7 @@ async function boot() {
 
   Data.subscribe();
   render();
+  Weather.load();
 
   /* Queue lookups BEFORE touching the map. This used to run after Map_.fit(),
      so anything that threw while fitting bounds took the geocoder down with

@@ -233,6 +233,30 @@ button.leg.on{background:var(--fill)}
 .leg .mode i{font-style:normal;font-weight:500;color:var(--ink-3);margin-left:2px}
 .stop:has(+ .leg) .marker::after{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
 
+/* ---------- weather and parts of the day ---------- */
+/* The day's high and low beside its title, and each part of the day headed
+   with its own forecast. Ink, not colour: weather is information, not one
+   of the three accents. */
+.daytitle{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wx{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:5px 11px;border-radius:999px;background:var(--fill);
+  font-size:14px;font-weight:700;letter-spacing:0;color:var(--ink);font-variant-numeric:tabular-nums}
+.wx i{font-style:normal;font-weight:500;color:var(--ink-3)}
+.wx svg,.part-wx svg{width:17px;height:17px;fill:currentColor;flex:0 0 auto}
+.daybreak .wx{margin-left:auto;font-size:12.5px;padding:3px 9px}
+.daybreak .wx svg{width:14px;height:14px}
+.part{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 14px;padding:8px 0 7px;
+  border-bottom:1px solid var(--line);font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--ink-2)}
+.list .part:not(:first-of-type){margin-top:18px}
+.part-wx{display:inline-flex;align-items:center;gap:6px;font-weight:600;letter-spacing:0;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.part-wx i{font-style:normal;font-weight:500;color:var(--ink-3)}
+
+/* Group or just yours, top right of the card. */
+.card .when{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.party{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.party.group{background:var(--ink);color:#fff}
+.party.yours{background:var(--fill);color:var(--ink-2)}
+.d-tags .party{padding:4px 10px}
+
 /* ---------- new stop ---------- */
 .fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;
   background:var(--yellow);color:var(--ink);border-radius:999px;padding:14px 20px;font-size:15px;font-weight:700;
