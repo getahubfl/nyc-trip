@@ -548,6 +548,12 @@ window.maplibregl = {
   await q.locator('#rail [data-day="2026-11-25"]').click();
   await q.waitForTimeout(300);
   ok('a new last stop takes over, and the one before gets its rule back', await rules() === 'leg-a:1px leg-b:1px leg-c:0px', await rules());
+  // Each line leaves from the foot of its own circle, the section's last included.
+  const gaps = await q.evaluate(() => [...document.querySelectorAll('.stop')].map(s => {
+    const m = s.querySelector('.marker'), line = getComputedStyle(m, '::after');
+    return line.content === 'none' ? 'none' : Math.round(s.getBoundingClientRect().top + parseFloat(line.top) - m.getBoundingClientRect().bottom);
+  }).join(' '));
+  ok('the line to the section end starts below the last circle, not through it', gaps === '0 0 0', gaps);
   await q.evaluate(async () => { window.__rows.splice(2, 1); await window.Data.load(); });
   await q.locator('#rail [data-day="2026-11-25"]').click();
   await q.waitForTimeout(1200);
