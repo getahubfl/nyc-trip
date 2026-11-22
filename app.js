@@ -1568,6 +1568,13 @@ function showErr(m) {
   setTimeout(() => { el.hidden = true; }, 4000);
 }
 
+// The last selection inside the notes box, kept for the format toolbar.
+let noteRange = null, tapRange = null;
+document.addEventListener('selectionchange', () => {
+  const box = document.getElementById('f-notes'), sel = getSelection();
+  if (box && sel.rangeCount && box.contains(sel.getRangeAt(0).commonAncestorContainer)) noteRange = sel.getRangeAt(0).cloneRange();
+});
+
 function wireForm() {
   const body = $('#sheetBody');
   updateTotal();
@@ -1588,13 +1595,27 @@ function wireForm() {
   });
   // A toolbar tap must not take the cursor out of the note box, or the
   // format has nothing to apply to.
-  body.addEventListener('pointerdown', e => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });
+  body.addEventListener('pointerdown', e => {
+    if (!e.target.closest('[data-fmt]')) return;
+    e.preventDefault();
+    tapRange = noteRange;   // the selection as the finger lands, before Safari can change it
+  });
   body.addEventListener('mousedown', e => { if (e.target.closest('[data-fmt]')) e.preventDefault(); });
   body.addEventListener('click', e => {
     const fmt = e.target.closest('[data-fmt]');
     if (fmt) {
       const box = $('#f-notes');
       if (document.activeElement !== box) box.focus();
+      // Safari on iPhone can drop the selection when a button is tapped, and
+      // focus() alone puts the cursor at the start. Put the user's selection
+      // back so the format lands on the words they chose.
+      const want = tapRange || noteRange, cur = getSelection();
+      tapRange = null;
+      const inBox = cur.rangeCount && box.contains(cur.getRangeAt(0).commonAncestorContainer);
+      if (want && box.contains(want.commonAncestorContainer) && (!inBox || (cur.isCollapsed && !want.collapsed))) {
+        cur.removeAllRanges();
+        cur.addRange(want.cloneRange());
+      }
       const cmd = fmt.dataset.fmt;
       if (cmd === 'hilite') {
         // Opens the colour row; the colour itself is picked there.

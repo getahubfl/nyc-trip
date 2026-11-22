@@ -627,6 +627,41 @@ window.maplibregl = {
   await q.waitForTimeout(600);
   ok('the highlight colour is kept', /<mark class="hl-pink">Pink bit<\/mark>/.test(await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes)),
      await q.evaluate(() => window.__rows.find(r => r.id === 'n1').notes));
+  // Safari on iPhone can drop the selection when a toolbar button is tapped.
+  await q.evaluate(() => window.openForm('n1'));
+  await q.waitForTimeout(300);
+  await q.locator('#f-notes').click();
+  await q.evaluate(() => {
+    const box = document.getElementById('f-notes');
+    box.innerHTML = 'Make this bold';
+    const r = document.createRange(); r.setStart(box.firstChild, 5); r.setEnd(box.firstChild, 9);
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+  });
+  await q.waitForTimeout(100);
+  await q.evaluate(() => { getSelection().removeAllRanges(); document.getElementById('f-notes').blur(); });
+  await q.waitForTimeout(100);
+  await q.locator('[data-fmt="bold"]').click();
+  ok('bold lands on the chosen words even if the tap lost the selection', /Make <b>this<\/b> bold/.test(await q.locator('#f-notes').innerHTML()),
+     await q.locator('#f-notes').innerHTML());
+  // Or collapsed it to a cursor inside the box as the finger landed.
+  await q.evaluate(() => {
+    const box = document.getElementById('f-notes');
+    box.innerHTML = 'Then italic here';
+    const r = document.createRange(); r.setStart(box.firstChild, 5); r.setEnd(box.firstChild, 11);
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+  });
+  await q.waitForTimeout(100);
+  const ib = await q.locator('[data-fmt="italic"]').boundingBox();
+  await q.mouse.move(ib.x + ib.width / 2, ib.y + ib.height / 2);
+  await q.mouse.down();
+  await q.evaluate(() => { const box = document.getElementById('f-notes'), r = document.createRange();
+    r.setStart(box.firstChild, 0); r.collapse(true); getSelection().removeAllRanges(); getSelection().addRange(r); });
+  await q.waitForTimeout(100);
+  await q.mouse.up();
+  ok('or if the tap collapsed it to a cursor', /Then <i>italic<\/i> here/.test(await q.locator('#f-notes').innerHTML()),
+     await q.locator('#f-notes').innerHTML());
+  await q.locator('[data-cancel]').click();
+  await q.waitForTimeout(300);
   // The form has been opened many times by now; a tap must still act once.
   await q.evaluate(() => window.openForm('n1'));
   await q.waitForTimeout(300);
