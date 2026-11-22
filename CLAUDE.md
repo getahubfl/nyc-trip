@@ -188,6 +188,11 @@ sheet/detail/form → global event handling → auth gate → boot.
   to the app and by a timer while open; one Open-Meteo request covers all four
   days. The last forecast shows until a new one lands, with "Refreshed 2:40pm"
   under the day's pill, on the phone's clock.
+- **Instagram and Yelp sit under the address in the stop detail**, never on
+  the card (`socialLinks`, `socialHTML`). A saved link wins; an Instagram
+  `@handle` opens the profile. With none saved, a place searches both by its
+  business name; an exact spot gets nothing. Only http(s) links are used. The
+  `instagram` and `yelp` columns are detected like `party` (`hasSocialCols`).
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -241,7 +246,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 136 assertions, all
+coordinates, the Apple Maps links, Instagram and Yelp links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 142 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

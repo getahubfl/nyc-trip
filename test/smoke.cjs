@@ -727,6 +727,45 @@ window.maplibregl = {
   await q.waitForTimeout(300);
   ok('coming back to the app catches up a missed refresh', wxHits === wh + 1, wxHits - wh);
 
+  console.log('\n— INSTAGRAM AND YELP —');
+  await q.evaluate(async () => {
+    const base = { day: '2026-11-27', duration_min: 90, status: 'confirmed', category: 'dinner', people: 2, cost_per_person: 0, extras: [],
+      needs_reservation: false, booked: false, geo_status: 'manual', lat: 40.7506, lng: -73.9871, notes: '' };
+    window.__rows.push({ ...base, id: 's1', time: '17:00', title: 'Keens Steakhouse 🥩', address: '72 W 36th St', map_kind: 'place', place_name: 'Keens Steakhouse' },
+                       { ...base, id: 's2', time: '20:00', title: 'Parade corner', address: 'CPW & W 66th St', map_kind: 'spot', place_name: '' });
+    await window.Data.load();
+  });
+  await q.locator('#rail [data-day="2026-11-27"]').click();
+  await q.waitForTimeout(300);
+  ok('no Instagram or Yelp on the cards', await q.locator('.stop .social').count() === 0);
+  await q.evaluate(() => window.openDetail('s1'));
+  await q.waitForTimeout(300);
+  const sl = await q.evaluate(() => [...document.querySelectorAll('.d-row dd .socials a')].map(a => [a.textContent, a.getAttribute('href'), a.closest('.d-row').querySelector('dt').textContent]));
+  ok('a place with no links searches Instagram and Yelp by its name, under the address',
+     sl.length === 2 && sl[0][0] === 'Instagram' && sl[0][1] === 'https://www.instagram.com/explore/search/keyword/?q=Keens%20Steakhouse'
+     && sl[1][0] === 'Yelp' && sl[1][1].startsWith('https://www.yelp.com/search?find_desc=Keens%20Steakhouse&find_loc=New%20York') && sl.every(x => x[2] === 'ADDRESS'), JSON.stringify(sl));
+  await q.evaluate(() => window.openDetail('s2'));
+  await q.waitForTimeout(300);
+  ok('an exact spot gets no search links', await q.locator('.socials').count() === 0);
+  await q.evaluate(() => window.openForm('s1'));
+  await q.waitForTimeout(300);
+  await q.locator('#f-ig').fill('@keenssteakhouse');
+  await q.locator('#f-yelp').fill('yelp.com/biz/keens-steakhouse-new-york');
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  const s1 = await q.evaluate(() => window.__rows.find(r => r.id === 's1'));
+  ok('the links are saved as typed', s1.instagram === '@keenssteakhouse' && s1.yelp === 'yelp.com/biz/keens-steakhouse-new-york', JSON.stringify([s1.instagram, s1.yelp]));
+  await q.evaluate(() => window.openDetail('s1'));
+  await q.waitForTimeout(300);
+  const sl2 = await q.evaluate(() => [...document.querySelectorAll('.socials a')].map(a => a.getAttribute('href')));
+  ok('a handle opens the profile and a saved link opens itself',
+     sl2[0] === 'https://www.instagram.com/keenssteakhouse/' && sl2[1] === 'https://yelp.com/biz/keens-steakhouse-new-york', JSON.stringify(sl2));
+  await q.evaluate(async () => { const r = window.__rows.find(x => x.id === 's1'); r.instagram = 'javascript:alert(1)'; r.yelp = 'javascript:alert(1)'; await window.Data.load(); window.openDetail('s1'); });
+  await q.waitForTimeout(300);
+  ok('anything but a web link is ignored', await q.evaluate(() => [...document.querySelectorAll('.socials a')].every(a => a.href.startsWith('https://www.'))));
+  await q.locator('#closeSheet').click();
+  await q.waitForTimeout(300);
+
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
   await q.waitForTimeout(400);

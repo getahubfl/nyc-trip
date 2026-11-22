@@ -322,6 +322,11 @@ a{color:var(--link)}
 .d-row dt{padding-top:3px}
 .d-row dd{margin:0;overflow-wrap:anywhere}
 .d-row a{text-decoration:none}
+/* Instagram and Yelp, under the address in the stop detail. */
+.socials{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.socials .social{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:999px;background:var(--fill);
+  color:var(--ink);font-size:14px;font-weight:600}
+.socials .social::after{content:"↗";margin-left:6px;color:var(--ink-3);font-weight:500}
 /* Booking state. The one place a whole block takes colour. */
 .resbar{margin:0 0 16px;padding:14px 16px;border-radius:var(--r);background:var(--red-tint)}
 .resbar.booked{background:var(--green-tint)}

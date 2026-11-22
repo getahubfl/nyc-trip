@@ -127,6 +127,29 @@ function hasLoc(e) { return Number.isFinite(e.lat) && Number.isFinite(e.lng); }
    "205 E Houston St" finds the one in Manhattan wherever the phone is. */
 const MIDTOWN = '40.7580,-73.9855';
 const near = e => hasLoc(e) ? e.lat + ',' + e.lng : MIDTOWN;
+// Instagram and Yelp for a stop: the saved link when there is one (an
+// Instagram @handle becomes its profile), otherwise, for a place, a search by
+// its name. Only http(s) links are ever used.
+const webLink = u => /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/[^\s"'<>]*)?$/i.test(u) ? 'https://' + u : '';
+function socialLinks(e) {
+  const name = e.placeName || e.title || '';
+  const place = e.mapKind === 'place' && name;
+  const ig = (e.instagram || '').trim(), yp = (e.yelp || '').trim();
+  // "@joes.pizza" or "joespizza" is a handle; anything with a slash is a link.
+  const handle = /^@?[a-z0-9._]{1,30}$/i.test(ig) && (ig.startsWith('@') || !/\.[a-z]{2,}$/i.test(ig)) ? ig.replace(/^@/, '') : '';
+  const igUrl = handle ? `https://www.instagram.com/${handle}/` : webLink(ig);
+  const q = encodeURIComponent(name.replace(/\s*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?/gu, '').trim());
+  return {
+    instagram: igUrl || (place ? `https://www.instagram.com/explore/search/keyword/?q=${q}` : ''),
+    yelp: webLink(yp) || (place ? `https://www.yelp.com/search?find_desc=${q}&find_loc=${encodeURIComponent('New York, NY')}` : ''),
+  };
+}
+function socialHTML(e) {
+  const l = socialLinks(e);
+  if (!l.instagram && !l.yelp) return '';
+  const a = (href, label) => href ? `<a class="social" href="${esc(href)}" target="_blank" rel="noopener">${label}</a>` : '';
+  return `<span class="socials">${a(l.instagram, 'Instagram')}${a(l.yelp, 'Yelp')}</span>`;
+}
 function mapsUrl(e) {
   if (e.mapKind === 'spot' && hasLoc(e)) return `https://maps.apple.com/?ll=${e.lat},${e.lng}&q=${encodeURIComponent(e.title || 'Stop')}`;
   if (e.mapKind === 'place' && e.placeName) return `https://maps.apple.com/?q=${encodeURIComponent(e.placeName)}&sll=${near(e)}`;
@@ -169,6 +192,8 @@ function fromRow(r) {
     mapKind: r.map_kind || '',
     placeName: r.place_name || '',
     party: r.party || '',
+    instagram: r.instagram || '',
+    yelp: r.yelp || '',
     updatedBy: r.updated_by || ''
   };
 }
@@ -197,7 +222,8 @@ function toRow(e) {
     // Only once the columns exist: PostgREST refuses unknown columns, and a
     // refused write would roll back every save.
     ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {}),
-    ...(Data.hasPartyCol ? { party: e.party || null } : {})
+    ...(Data.hasPartyCol ? { party: e.party || null } : {}),
+    ...(Data.hasSocialCols ? { instagram: e.instagram || '', yelp: e.yelp || '' } : {})
   };
 }
 
@@ -227,6 +253,7 @@ const Data = {
   // exist the app neither writes them nor shows the place/spot switch.
   hasMapCols: false,
   hasPartyCol: false,
+  hasSocialCols: false,
 
   async load() {
     const { data, error } = await sb.from('events').select('*');
@@ -241,6 +268,11 @@ const Data = {
       const probe = await sb.from('events').select('party', { head: true });
       this.hasPartyCol = !probe.error;
     } catch (err) { this.hasPartyCol = false; }
+    // instagram and yelp: exact links per stop, their own change again.
+    try {
+      const probe = await sb.from('events').select('instagram,yelp', { head: true });
+      this.hasSocialCols = !probe.error;
+    } catch (err) { this.hasSocialCols = false; }
   },
 
   // Every open browser subscribes; any insert/update/delete lands here within
@@ -1283,7 +1315,8 @@ function openDetail(id) {
       : `<div class="nocost">No cost recorded — add one when you know it</div>`}
     <dl class="d-rows">
       ${e.mapKind === 'place' && e.placeName ? `<div class="d-row"><dt>PLACE</dt><dd><a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.placeName)}</a></dd></div>` : ''}
-      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd>${mapsUrl(e) && !(e.mapKind === 'place' && e.placeName) ? `<a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : esc(e.address)}</dd></div>` : ''}
+      ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd>${mapsUrl(e) && !(e.mapKind === 'place' && e.placeName) ? `<a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : esc(e.address)}${socialHTML(e)}</dd></div>`
+        : socialHTML(e) ? `<div class="d-row"><dt>LINKS</dt><dd>${socialHTML(e)}</dd></div>` : ''}
       ${e.mapKind ? `<div class="d-row"><dt>MAPS OPENS</dt><dd>${e.mapKind === 'spot' ? 'The exact spot' : 'The place'}</dd></div>` : ''}
       <div class="d-row"><dt>LOCATION</dt><dd>${placed
         ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span class="muted small">matched: ${esc(e.geoResolved)}</span>` : ''}
@@ -1503,6 +1536,11 @@ function formHTML() {
     <div class="hint" id="f-total"></div></div>
 
   <div class="f"><label for="f-link">LINK</label><input id="f-link" type="url" value="${esc(f.link)}" placeholder="https://"></div>
+  ${Data.hasSocialCols ? `<div class="f"><label for="f-ig">INSTAGRAM</label>
+    <input id="f-ig" type="text" value="${esc(f.instagram || '')}" placeholder="@handle or link" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+  <div class="f"><label for="f-yelp">YELP</label>
+    <input id="f-yelp" type="url" value="${esc(f.yelp || '')}" placeholder="yelp.com/biz/…" autocapitalize="off" autocorrect="off">
+    <div class="hint">Left empty, a place searches Instagram and Yelp by its name.</div></div>` : ''}
   <div class="f"><span class="legend" id="f-notes-label">NOTES</span>
     <div class="notebar" role="toolbar" aria-label="Note formatting">
       <button type="button" data-fmt="bold" aria-label="Bold"><b>B</b></button>
@@ -1544,6 +1582,7 @@ function readForm() {
   f.people = Math.max(0, Number($('#f-people').value) || 0);
   f.costPerPerson = Math.max(0, Number($('#f-cpp').value) || 0);
   f.link = $('#f-link').value.trim();
+  if ($('#f-ig')) { f.instagram = $('#f-ig').value.trim(); f.yelp = $('#f-yelp').value.trim(); }
   f.notes = cleanNote($('#f-notes').innerHTML);
   f.needsReservation = $('#f-res').checked;
   if (f.needsReservation) {
@@ -1722,7 +1761,8 @@ async function saveForm() {
     lat: prev ? prev.lat : null, lng: prev ? prev.lng : null,
     geoStatus: prev ? prev.geoStatus : 'idle',
     geoResolved: prev ? prev.geoResolved : '',
-    mapKind: f.mapKind, placeName: f.placeName, party: f.party || ''
+    mapKind: f.mapKind, placeName: f.placeName, party: f.party || '',
+    instagram: f.instagram || '', yelp: f.yelp || ''
   };
 
   // hand-typed coordinates always win over the lookup
