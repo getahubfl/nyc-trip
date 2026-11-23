@@ -148,8 +148,9 @@ sheet/detail/form → global event handling → auth gate → boot.
 - **Every stop is a place or an exact spot** (`map_kind`, required for new
   stops once the column exists; `Data.hasMapCols` detects it). A place opens
   Apple Maps by its business name (`place_name`), so Maps shows the real place
-  card; an exact spot (parade corner, start of a walk) opens the pin.
-  `mapsUrl` / `mapsDirectionsUrl` in `app.js`.
+  card; an exact spot (parade corner, start of a walk) opens the pin
+  (`mapsUrl`). Directions come from Apple Maps' own card, so the stop detail
+  carries no coordinates, directions link, "Maps opens" or "Last edit" rows.
 - **Place suggestions come from Photon**, as you type the business name.
   Nominatim's policy forbids search-as-you-type. Guardrails in `Suggest`:
   3+ characters, a pause, one request in flight, Manhattan only, cached, and

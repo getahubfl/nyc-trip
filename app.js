@@ -158,11 +158,6 @@ function mapsUrl(e) {
   if (e.address) return `https://maps.apple.com/?q=${encodeURIComponent(e.address)}&sll=${MIDTOWN}`;
   return hasLoc(e) ? `https://maps.apple.com/?ll=${e.lat},${e.lng}&q=${encodeURIComponent(e.title || 'Stop')}` : '';
 }
-function mapsDirectionsUrl(e) {
-  if (e.mapKind === 'place' && e.placeName)
-    return 'https://maps.apple.com/?daddr=' + encodeURIComponent(e.placeName + (e.address ? ', ' + e.address : '')) + '&sll=' + near(e);
-  return 'https://maps.apple.com/?daddr=' + e.lat + ',' + e.lng;
-}
 /* The background search may look up a stop by its name only when it is a
    place with no address. An address is always looked up, to place its pin. */
 const canLookup = e => !!e.address || (e.mapKind === 'place' && !!(e.placeName || e.title));
@@ -1319,19 +1314,9 @@ function openDetail(id) {
       ${e.mapKind === 'place' && e.placeName ? `<div class="d-row"><dt>PLACE</dt><dd><a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.placeName)}</a></dd></div>` : ''}
       ${e.address ? `<div class="d-row"><dt>ADDRESS</dt><dd>${mapsUrl(e) && !(e.mapKind === 'place' && e.placeName) ? `<a href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.address)}</a>` : esc(e.address)}${socialHTML(e)}</dd></div>`
         : socialHTML(e) ? `<div class="d-row"><dt>LINKS</dt><dd>${socialHTML(e)}</dd></div>` : ''}
-      ${e.mapKind ? `<div class="d-row"><dt>MAPS OPENS</dt><dd>${e.mapKind === 'spot' ? 'The exact spot' : 'The place'}</dd></div>` : ''}
-      <div class="d-row"><dt>LOCATION</dt><dd>${placed
-        ? `${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}${e.geoResolved ? `<br><span class="muted small">matched: ${esc(e.geoResolved)}</span>` : ''}
-           <br><a href="${mapsDirectionsUrl(e)}" target="_blank" rel="noopener">Directions</a>`
-        : (e.geoStatus === 'pending'
-            ? `<span class="muted">Still looking…</span>`
-            : e.geoStatus === 'cleared'
-              ? `<span class="muted">Location removed. Use “Re-locate missing pins” to look it up again.</span>`
-              : `<span class="bad">Not placed on the map yet</span>`)}</dd></div>
       ${extras.length ? `<div class="d-row"><dt>EXTRAS</dt><dd>${extras.map(x => `${esc(x.label || 'Extra')} — ${money(x.amount)}`).join('<br>')}</dd></div>` : ''}
       ${e.link ? `<div class="d-row"><dt>LINK</dt><dd><a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.link.replace(/^https?:\/\//, ''))}</a></dd></div>` : ''}
       ${e.notes ? `<div class="d-row"><dt>NOTES</dt><dd class="note">${noteHTML(e.notes)}</dd></div>` : ''}
-      ${e.updatedBy ? `<div class="d-row"><dt>LAST EDIT</dt><dd>${esc(e.updatedBy)}</dd></div>` : ''}
     </dl>
     ${(prev || next) ? `<div class="neighbors">${walk(prev, 'BEFORE')}${walk(next, 'AFTER')}</div>` : ''}
   `;
