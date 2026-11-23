@@ -414,7 +414,8 @@ window.maplibregl = {
   ok('the total is labelled as including extras', (await q.locator('.costgrid span').nth(1).innerText()).includes('WITH EXTRAS'));
   ok('reservation bar reads Booked', (await q.locator('.resbar h4').innerText()).includes('Booked'));
   ok('address opens in Apple Maps', await q.locator('.d-row a[href^="https://maps.apple.com/?q=205%20E%20Houston%20St"]').count() === 1);
-  ok('directions open in Apple Maps', await q.locator('.d-row a[href="https://maps.apple.com/?daddr=40.7223,-73.9874"]').count() === 1);
+  ok('the detail has no Maps opens, Location or Last edit rows', await q.evaluate(() =>
+    ![...document.querySelectorAll('.d-row dt')].some(d => /^(MAPS OPENS|LOCATION|LAST EDIT)$/.test(d.textContent))));
 
   console.log('\n— BUDGET BY CATEGORY —');
   await q.locator('#closeSheet').click();
