@@ -775,6 +775,57 @@ window.maplibregl = {
   await q.locator('#closeSheet').click();
   await q.waitForTimeout(300);
 
+  console.log('\n— COMPLETED STOPS —');
+  await q.evaluate(async () => {
+    const base = { day: '2026-11-28', duration_min: 30, status: 'confirmed', category: 'coffee', people: 2, cost_per_person: 0, extras: [],
+      needs_reservation: false, booked: false, geo_status: 'manual', lat: 40.72, lng: -73.99, notes: '', map_kind: 'place', place_name: '' };
+    window.__rows.push({ ...base, id: 'c1', time: '08:00', title: 'Coffee first' },
+                       { ...base, id: 'c2', time: '09:00', title: 'Then bagels', lat: 40.721 },
+                       { ...base, id: 'c3', time: '10:00', title: 'Then a walk', lat: 40.722 });
+    await window.Data.load();
+  });
+  await q.locator('#rail [data-day="2026-11-28"]').click();
+  await q.waitForTimeout(300);
+  const titles = () => q.evaluate(() => [...document.querySelectorAll('.stop .stop-open')].map(b => b.textContent).join(' | '));
+  const seg = () => q.evaluate(() => [...document.querySelectorAll('.viewseg button')].map(b => (b.getAttribute('aria-pressed') === 'true' ? '*' : '') + b.textContent).join(' '));
+  ok('a day opens on To do, with counts', (await seg()).startsWith('*To do3 Planned3 Completed0'), await seg());
+  await q.evaluate(() => window.openDetail('c1'));
+  await q.waitForTimeout(300);
+  ok('the full view has a Mark complete toggle, not inside Edit', await q.locator('.sheet .donebtn:not(.on)').count() === 1 && await q.locator('#f-title').count() === 0);
+  await q.locator('[data-toggledone]').click();
+  await q.waitForTimeout(500);
+  const c1 = await q.evaluate(() => window.__rows.find(r => r.id === 'c1'));
+  ok('marking complete saves the time', !!c1.completed_at && Date.now() - Date.parse(c1.completed_at) < 60e3, c1.completed_at);
+  ok('the toggle shows it completed, with an undo', await q.locator('.donebtn.on').count() === 1 && /tap to undo/.test(await q.locator('.donebtn').innerText()));
+  await q.locator('#closeSheet').click();
+  await q.waitForTimeout(300);
+  ok('a completed stop leaves the To do view', await titles() === 'Then bagels | Then a walk', await titles());
+  ok('and the counts follow', (await seg()).startsWith('*To do2 Planned3 Completed1'), await seg());
+  await q.locator('[data-doneview="planned"]').click();
+  await q.waitForTimeout(200);
+  ok('Planned shows the whole day, the completed stop quiet and ticked',
+     await titles() === 'Coffee first | Then bagels | Then a walk' && await q.locator('.stop.done').count() === 1 && /Done \d{1,2}:\d{2}(am|pm)/.test(await q.locator('.stop.done .donetag').innerText()));
+  await q.locator('[data-doneview="completed"]').click();
+  await q.waitForTimeout(200);
+  ok('Completed shows only what is done', await titles() === 'Coffee first', await titles());
+  // Editing a completed stop keeps it completed.
+  await q.evaluate(() => window.openForm('c1'));
+  await q.waitForTimeout(300);
+  await q.locator('#f-title').fill('Coffee first, really');
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(600);
+  ok('editing a completed stop keeps it completed', !!(await q.evaluate(() => window.__rows.find(r => r.id === 'c1').completed_at)));
+  await q.evaluate(() => window.openDetail('c1'));
+  await q.waitForTimeout(300);
+  await q.locator('[data-toggledone]').click();
+  await q.waitForTimeout(500);
+  ok('undo puts it back on the To do list', await q.evaluate(() => window.__rows.find(r => r.id === 'c1').completed_at) === null);
+  await q.locator('#closeSheet').click();
+  await q.waitForTimeout(300);
+  ok('and Completed is empty again, with a hint', await q.locator('.empty h3').innerText() === 'Nothing completed yet' && await q.locator('.viewseg').count() === 1);
+  await q.locator('[data-doneview="todo"]').click();
+  await q.waitForTimeout(200);
+
   console.log('\n— DESKTOP LAYOUT —');
   await q.setViewportSize({ width: 1280, height: 900 });
   await q.waitForTimeout(400);
