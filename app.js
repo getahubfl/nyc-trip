@@ -1636,10 +1636,20 @@ function readForm() {
   return f;
 }
 function updateTotal() { $('#f-total').textContent = 'Total for this stop: ' + money(totalCost(readForm())); }
-function showErr(m) {
+// A refused save must be impossible to miss: the form is long and its own
+// error line sits at the foot, out of sight on a phone. So the message also
+// toasts, and the field that needs attention scrolls into view and is marked.
+function showErr(m, field) {
   const el = $('#f-err');
   el.textContent = m; el.hidden = false;
   setTimeout(() => { el.hidden = true; }, 4000);
+  toast(m);
+  const f = field && $(field);
+  if (f) {
+    f.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    f.classList.add('needs');
+    setTimeout(() => f.classList.remove('needs'), 2500);
+  }
 }
 
 // The last selection inside the notes box, kept for the format toolbar.
@@ -1780,8 +1790,8 @@ function wireForm() {
 
 async function saveForm() {
   const f = readForm();
-  if (!f.title) { showErr('Give the stop a name.'); $('#f-title').focus(); return; }
-  if (Data.hasMapCols && !f.mapKind) { showErr('Choose whether Maps opens a place or an exact spot.'); return; }
+  if (!f.title) { showErr('Give the stop a name.', '#f-title'); $('#f-title').focus(); return; }
+  if (Data.hasMapCols && !f.mapKind) { showErr('Choose whether Maps opens a place or an exact spot.', '#f-kindrow'); return; }
   const isNew = !f.id;
   const prev = isNew ? null : S.events.find(x => x.id === f.id);
 

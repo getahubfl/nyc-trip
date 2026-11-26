@@ -329,6 +329,8 @@ a{color:var(--link)}
 .socials .social::after{content:"↗";margin-left:6px;color:var(--ink-3);font-weight:500}
 /* Booking state. The one place a whole block takes colour. */
 /* To do / Planned / Completed, under a day's title. */
+/* A form field a refused save points at. */
+.needs{border-radius:var(--r);box-shadow:0 0 0 2px var(--red);transition:box-shadow .3s}
 .viewseg{display:flex;gap:4px;padding:4px;margin:-4px 0 16px;border-radius:999px;background:var(--fill)}
 .viewseg button{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:999px;
   font-size:14px;font-weight:600;color:var(--ink-2)}
