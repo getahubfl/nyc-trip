@@ -191,6 +191,7 @@ function fromRow(r) {
     party: r.party || '',
     instagram: r.instagram || '',
     yelp: r.yelp || '',
+    completedAt: r.completed_at || null,
     updatedBy: r.updated_by || ''
   };
 }
@@ -220,7 +221,8 @@ function toRow(e) {
     // refused write would roll back every save.
     ...(Data.hasMapCols ? { map_kind: e.mapKind || null, place_name: e.placeName || '' } : {}),
     ...(Data.hasPartyCol ? { party: e.party || null } : {}),
-    ...(Data.hasSocialCols ? { instagram: e.instagram || '', yelp: e.yelp || '' } : {})
+    ...(Data.hasSocialCols ? { instagram: e.instagram || '', yelp: e.yelp || '' } : {}),
+    ...(Data.hasDoneCol ? { completed_at: e.completedAt || null } : {})
   };
 }
 
@@ -235,6 +237,7 @@ const S = {
   day: DAYS[0].id,
   cats: new Set(CATS.map(c => c.id)),
   toBookOnly: false,
+  done: 'todo',          // which stops a day shows: 'todo' | 'planned' | 'completed'
   filtersOpen: false,
   selected: null,
   session: null,
@@ -251,6 +254,7 @@ const Data = {
   hasMapCols: false,
   hasPartyCol: false,
   hasSocialCols: false,
+  hasDoneCol: false,
 
   async load() {
     const { data, error } = await sb.from('events').select('*');
@@ -270,6 +274,11 @@ const Data = {
       const probe = await sb.from('events').select('instagram,yelp', { head: true });
       this.hasSocialCols = !probe.error;
     } catch (err) { this.hasSocialCols = false; }
+    // completed_at: when a stop was marked complete (null while still to do).
+    try {
+      const probe = await sb.from('events').select('completed_at', { head: true });
+      this.hasDoneCol = !probe.error;
+    } catch (err) { this.hasDoneCol = false; }
   },
 
   // Every open browser subscribes; any insert/update/delete lands here within
@@ -577,6 +586,14 @@ function watchLayout() {
 }
 
 /* ---------- filtering ---------- */
+/* Completed stops leave the default "To do" view; "Planned" shows the day as
+   planned, done or not; "Completed" shows only what is done. The to-book
+   list and the budget ignore this. */
+const DONE_VIEWS = [['todo', 'To do'], ['planned', 'Planned'], ['completed', 'Completed']];
+function doneShown(e, view = S.done) {
+  if (!Data.hasDoneCol || view === 'planned') return true;
+  return view === 'completed' ? !!e.completedAt : !e.completedAt;
+}
 function visibleEvents() {
   if (S.toBookOnly) {
     return S.events
@@ -587,10 +604,10 @@ function visibleEvents() {
     // Chronological across the whole trip; undated stops sort to the end of
     // their own day, same rule as a single day view.
     return S.events
-      .filter(e => S.cats.has(e.category))
+      .filter(e => S.cats.has(e.category) && doneShown(e))
       .sort((a, b) => (a.day + (a.time || 'zz')).localeCompare(b.day + (b.time || 'zz')));
   }
-  return S.events.filter(e => e.day === S.day && S.cats.has(e.category)).sort(sortEvents);
+  return S.events.filter(e => e.day === S.day && S.cats.has(e.category) && doneShown(e)).sort(sortEvents);
 }
 function toBookCount() { return S.events.filter(e => e.needsReservation && !e.booked).length; }
 
@@ -696,11 +713,34 @@ function statusTag(e) {
   const s = STAT[e.status] || STAT.confirmed;
   return `<span class="tag st-${s.id}">${s.name}</span>`;
 }
+// The To do / Planned / Completed switch under a day's title, with counts.
+function doneSwitch() {
+  if (!Data.hasDoneCol || S.toBookOnly) return '';
+  const pool = S.events.filter(e => (S.day === ALL_DAYS || e.day === S.day) && S.cats.has(e.category));
+  return `<div class="viewseg" role="group" aria-label="Which stops">${DONE_VIEWS.map(([id, label]) =>
+    `<button type="button" data-doneview="${id}" aria-pressed="${S.done === id}">${label}<i>${pool.filter(e => doneShown(e, id)).length}</i></button>`).join('')}</div>`;
+}
+const doneAt = e => {
+  const d = new Date(e.completedAt), h = d.getHours();
+  return (h % 12 || 12) + ':' + String(d.getMinutes()).padStart(2, '0') + (h < 12 ? 'am' : 'pm');
+};
+const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 function renderList() {
   const list = visibleEvents();
   const el = $('#list');
   const allDays = S.day === ALL_DAYS;
   const d = DAYS.find(x => x.id === S.day);
+
+  // Empty only because of To do / Completed: keep the title and the switch.
+  if (!list.length && !S.toBookOnly && Data.hasDoneCol && S.done !== 'planned'
+      && S.events.some(e => (allDays || e.day === S.day) && S.cats.has(e.category))) {
+    el.innerHTML = `<div class="daytitle">${allDays ? 'The whole trip' : esc(d.label) + wxStamped(Weather.day(S.day))}</div>${doneSwitch()}
+      <div class="empty">${S.done === 'todo'
+        ? `<h3>All done${allDays ? '' : ' for the day'}</h3><p>Everything here is marked complete. See it under Completed.</p>`
+        : `<h3>Nothing completed yet</h3><p>Open a stop and tap Mark complete.</p>`}</div>`;
+    return;
+  }
 
   if (!list.length) {
     const narrowed = S.cats.size < CATS.length;
@@ -725,6 +765,7 @@ function renderList() {
     : allDays
       ? `<div class="daytitle">The whole trip · ${list.length} stop${list.length === 1 ? '' : 's'}</div>`
       : `<div class="daytitle">${esc(d.label)}${wxStamped(Weather.day(S.day))}</div>`;
+  html += doneSwitch();
 
   // A single day is split into morning, afternoon and night, each headed
   // with its own forecast. Stops with no time follow, under "Anytime".
@@ -789,7 +830,8 @@ function renderList() {
        row, so tapping anywhere still opens the stop. The row itself cannot be
        the button any more: the address is a link, and a link may not sit
        inside a button. */
-    html += `<div class="stop">
+    const isDone = Data.hasDoneCol && !!e.completedAt;
+    html += `<div class="stop${isDone && S.done === 'planned' ? ' done' : ''}">
       <div class="marker${placed ? '' : ' hollow'}" style="${catStyle(c)}">${num}</div>
       <div class="card">
         ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}
@@ -797,7 +839,7 @@ function renderList() {
         <h3><button class="stop-open" data-open="${e.id}">${esc(e.title || 'Untitled stop')}</button></h3>
         ${legBit}
         ${(e.address || e.placeName) && mapsUrl(e) ? `<a class="where" href="${esc(mapsUrl(e))}" target="_blank" rel="noopener">${esc(e.mapKind === 'place' && e.placeName ? e.placeName + (e.address ? ' · ' + e.address : '') : e.address)}</a>` : ''}
-        <div class="tags">${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
+        <div class="tags">${isDone ? `<span class="tag donetag">${CHECK_SVG}Done ${doneAt(e)}</span>` : ''}${dayTag}<span class="tag">${c.name}</span>${statusTag(e)}${res}${totalCost(e) ? `<span class="tag">${money(totalCost(e))}</span>` : ''}</div>
         ${locBit}
       </div>
     </div>`;
@@ -1300,6 +1342,11 @@ function openDetail(id) {
     <div class="tags d-tags">
       ${e.party ? `<span class="party ${e.party}">${e.party === 'group' ? 'Group' : 'Yours'}</span>` : ''}<span class="tag">${c.name}</span>${statusTag(e)}
     </div>
+    ${Data.hasDoneCol ? (e.completedAt
+      ? `<button type="button" class="donebtn on" data-toggledone="${e.id}" aria-pressed="true">
+           <span class="donecheck">${CHECK_SVG}</span><span><b>Completed</b><small>${doneAt(e)} · tap to undo</small></span></button>`
+      : `<button type="button" class="donebtn" data-toggledone="${e.id}" aria-pressed="false">
+           <span class="donecheck">${CHECK_SVG}</span><span><b>Mark complete</b><small>Moves it off the To do list</small></span></button>`) : ''}
     ${resHTML}
     ${(per || totalCost(e) || extras.length)
       ? `<div class="costgrid">
@@ -1749,7 +1796,8 @@ async function saveForm() {
     geoStatus: prev ? prev.geoStatus : 'idle',
     geoResolved: prev ? prev.geoResolved : '',
     mapKind: f.mapKind, placeName: f.placeName, party: f.party || '',
-    instagram: f.instagram || '', yelp: f.yelp || ''
+    instagram: f.instagram || '', yelp: f.yelp || '',
+    completedAt: prev ? prev.completedAt : null   // editing never un-completes a stop
   };
 
   // hand-typed coordinates always win over the lookup
@@ -1865,6 +1913,20 @@ document.addEventListener('click', async e => {
     }
     return;
   }
+
+  const td = e.target.closest('[data-toggledone]');
+  if (td) {
+    const ev = S.events.find(x => x.id === td.dataset.toggledone);
+    if (ev) {
+      const done = !ev.completedAt;
+      await Data.update(ev.id, { completedAt: done ? new Date().toISOString() : null });
+      openDetail(ev.id);
+      toast(done ? 'Marked complete.' : 'Back on the To do list.');
+    }
+    return;
+  }
+  const dv = e.target.closest('[data-doneview]');
+  if (dv) { S.done = dv.dataset.doneview; render(); return; }
 
   const tr = e.target.closest('[data-toggleres]');
   if (tr) {

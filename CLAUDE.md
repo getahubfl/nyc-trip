@@ -217,6 +217,14 @@ sheet/detail/form → global event handling → auth gate → boot.
   by the Claude environment's network secret, is checked against a hash in
   `agent_keys`. Keep the routine prompt, that file and
   `place-researcher.md` in step.
+- **Stops can be marked complete**, from the toggle at the top of a stop's
+  full view (never the edit form). `completed_at` holds when; null is still
+  to do. Each day (and the whole trip) has three views under its title:
+  To do (the default on opening, completed stops leave it), Planned (all,
+  completed ones quiet and ticked) and Completed (`S.done`, `doneShown`).
+  The map follows the view; the to-book list and the budget ignore it.
+  Saving the edit form carries `completedAt` over, because `Data.update`
+  writes the whole row. Detected like `party` (`hasDoneCol`).
 - **Addresses open Apple Maps.** Both travellers carry iPhones. The list row is a `div.stop` whose title is the button,
   stretched over the row in CSS, so the address can be a real link inside it.
 
@@ -270,7 +278,7 @@ Nominatim all stubbed, so it works with no network and no credentials. It
 covers sign-in by password, by code and by pasted link, setting the trip
 password, day and category filtering, the to-book view, adding and editing and
 deleting a stop, the reservation subform, cost maths, geocoding, manual
-coordinates, the Apple Maps links, Instagram and Yelp links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, and the desktop layout. 144 assertions, all
+coordinates, the Apple Maps links, Instagram and Yelp links, place suggestions, travel times, map routes, self-updating, weather refresh, the budget by category, notes formatting and highlight colours, completing stops, and the desktop layout. 155 assertions, all
 passing as shipped.
 
 What it does **not** cover, because it cannot without real credentials:

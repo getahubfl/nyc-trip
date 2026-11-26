@@ -95,6 +95,8 @@ create table if not exists public.events (
   -- Exact Instagram (link or @handle) and Yelp links. Empty: a place searches by name.
   instagram         text not null default '',
   yelp              text not null default '',
+  -- When the stop was marked complete; null while it is still to do.
+  completed_at      timestamptz,
 
   -- bookkeeping
   created_at        timestamptz not null default now(),
@@ -110,6 +112,7 @@ alter table public.events add column if not exists place_name text not null defa
 alter table public.events add column if not exists party text check (party in ('group','yours'));
 alter table public.events add column if not exists instagram text not null default '';
 alter table public.events add column if not exists yelp text not null default '';
+alter table public.events add column if not exists completed_at timestamptz;
 
 -- Keep updated_at honest, and record who touched it last.
 create or replace function public.touch_event()

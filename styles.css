@@ -328,6 +328,28 @@ a{color:var(--link)}
   color:var(--ink);font-size:14px;font-weight:600}
 .socials .social::after{content:"↗";margin-left:6px;color:var(--ink-3);font-weight:500}
 /* Booking state. The one place a whole block takes colour. */
+/* To do / Planned / Completed, under a day's title. */
+.viewseg{display:flex;gap:4px;padding:4px;margin:-4px 0 16px;border-radius:999px;background:var(--fill)}
+.viewseg button{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:999px;
+  font-size:14px;font-weight:600;color:var(--ink-2)}
+.viewseg button i{font-style:normal;font-weight:500;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.viewseg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.viewseg button[aria-pressed="true"] i{color:rgba(255,255,255,.7)}
+/* A completed stop in the Planned view: quiet, and ticked. */
+.stop.done .card > :not(.party),.stop.done .marker{opacity:.5}
+.tag.donetag{display:inline-flex;align-items:center;gap:4px}
+.tag.donetag svg{width:13px;height:13px}
+/* The complete toggle on a stop's full view. */
+.donebtn{display:flex;align-items:center;gap:14px;width:100%;margin:0 0 16px;padding:12px 16px;min-height:64px;border-radius:var(--r);
+  background:var(--surface);box-shadow:inset 0 0 0 1.5px var(--ink);color:var(--ink);text-align:left}
+.donebtn b{display:block;font-size:17px;font-weight:700}
+.donebtn small{display:block;font-size:13px;color:var(--ink-3);margin-top:1px}
+.donecheck{flex:0 0 auto;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--ink)}
+.donecheck svg{width:20px;height:20px;opacity:.25}
+.donebtn.on{background:var(--ink);color:#fff}
+.donebtn.on small{color:rgba(255,255,255,.7)}
+.donebtn.on .donecheck{background:#fff;color:var(--ink);box-shadow:none}
+.donebtn.on .donecheck svg{opacity:1}
 .resbar{margin:0 0 16px;padding:14px 16px;border-radius:var(--r);background:var(--red-tint)}
 .resbar.booked{background:var(--green-tint)}
 .resbar h4{font-weight:700;font-size:16px;margin:0 0 2px;color:var(--red)}
