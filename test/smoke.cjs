@@ -775,6 +775,20 @@ window.maplibregl = {
   await q.locator('#closeSheet').click();
   await q.waitForTimeout(300);
 
+  console.log('\n— A REFUSED SAVE IS VISIBLE —');
+  await q.evaluate(() => window.openForm(null));
+  await q.waitForTimeout(300);
+  await q.locator('#f-title').fill('No kind chosen');
+  await q.evaluate(() => { document.querySelector('.sheet-body').scrollTop = 0; });
+  await q.locator('[data-save]').click();
+  await q.waitForTimeout(700);
+  ok('a refused save toasts its reason', /place or an exact spot/.test(await q.locator('.toast').last().innerText().catch(() => '')), await q.locator('.toast').last().innerText().catch(() => 'no toast'));
+  ok('and brings the field to fix into view, marked', await q.evaluate(() => {
+    const k = document.getElementById('f-kindrow'), r = k.getBoundingClientRect();
+    return k.classList.contains('needs') && r.top >= 0 && r.bottom <= innerHeight; }));
+  await q.locator('[data-cancel]').click();
+  await q.waitForTimeout(300);
+
   console.log('\n— COMPLETED STOPS —');
   await q.evaluate(async () => {
     const base = { day: '2026-11-28', duration_min: 30, status: 'confirmed', category: 'coffee', people: 2, cost_per_person: 0, extras: [],
